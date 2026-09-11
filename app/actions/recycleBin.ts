@@ -3,11 +3,9 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { PermissionError } from "@/lib/permissions";
+import { RestoreBlockedError } from "@/lib/recycleBin-errors";
 
-// Thrown by restoreTask when restoring it independently would leave it
-// ACTIVE while its own primaryThread is still DELETED — the exact state
-// deleteThread's cascade (see app/actions/threads.ts) exists to prevent.
-export class RestoreBlockedError extends Error {}
+export { RestoreBlockedError };
 
 async function requireUserId(): Promise<string> {
   const session = await auth();
