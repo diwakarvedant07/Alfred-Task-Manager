@@ -56,6 +56,11 @@ function CanvasInner({
   const [selectedTaskUpdates, setSelectedTaskUpdates] = useState<
     { id: string; body: string; authorId: string; createdAt: Date }[]
   >([]);
+  // Local, synchronous overrides for the currently-open task's in-progress
+  // edits. Server round-trips (updateTask calls) fire per keystroke and can
+  // resolve out of order, so what's displayed must never depend on their
+  // timing — only on the order these edits were made.
+  const [taskEditOverride, setTaskEditOverride] = useState<Partial<TaskSummary> | null>(null);
 
   const nodes = useMemo<Node[]>(() => {
     if (tier === "BUBBLE") {
@@ -99,6 +104,7 @@ function CanvasInner({
   const handleNodeClick = useCallback(async (_: unknown, node: Node) => {
     if (node.type !== "task") return;
     setSelectedTaskId(node.id);
+    setTaskEditOverride(null);
     setSelectedTaskUpdates(await listTaskUpdates(node.id));
   }, []);
 
@@ -126,7 +132,10 @@ function CanvasInner({
     [router]
   );
 
-  const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+  const baseSelectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+  const selectedTask = baseSelectedTask
+    ? { ...baseSelectedTask, ...taskEditOverride }
+    : null;
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -165,15 +174,20 @@ function CanvasInner({
             task={selectedTask}
             updates={selectedTaskUpdates}
             onUpdateTask={async (patch) => {
+              // Apply synchronously so the displayed value always reflects
+              // the most recently typed edit, regardless of how long the
+              // Server Action call below takes or the order responses land in.
+              setTaskEditOverride((prev) => ({ ...prev, ...patch }));
               await updateTask(selectedTask.id, patch);
-              router.refresh();
             }}
             onAddComment={async (body) => {
               await addTaskUpdate(selectedTask.id, body);
               setSelectedTaskUpdates(await listTaskUpdates(selectedTask.id));
-              router.refresh();
             }}
-            onClose={() => setSelectedTaskId(null)}
+            onClose={() => {
+              setSelectedTaskId(null);
+              setTaskEditOverride(null);
+            }}
           />
         </div>
       )}
