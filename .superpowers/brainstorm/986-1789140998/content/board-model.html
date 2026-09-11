@@ -1,0 +1,82 @@
+<h2>How should "threads made of clustered tickets" actually work?</h2>
+<p class="subtitle">Same idea, three different mechanics. Pick the one that feels closest to what you pictured.</p>
+
+<div class="options" data-multiselect="false">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Free spatial canvas (implicit clustering)</h3>
+      <p>Tickets are sticky notes on an infinite corkboard. You place them anywhere. Threads are <em>computed</em> from how close tickets are to each other — drag one near a group and it silently joins that thread. Zoomed out, tight clusters collapse into one label bubble.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-body" style="position:relative;height:180px;background:repeating-linear-gradient(0deg,transparent,transparent 17px,rgba(120,120,120,.08) 18px);border-radius:8px;overflow:hidden">
+          <div style="position:absolute;left:20px;top:20px;width:34px;height:24px;background:#f2c14e;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+          <div style="position:absolute;left:38px;top:34px;width:34px;height:24px;background:#f2c14e;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+          <div style="position:absolute;left:26px;top:48px;width:34px;height:24px;background:#f2c14e;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+          <div style="position:absolute;left:24px;top:16px;font-size:10px;color:#8a6d1a;font-weight:600">Q3 Report</div>
+
+          <div style="position:absolute;left:180px;top:90px;width:34px;height:24px;background:#6fb1e0;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+          <div style="position:absolute;left:198px;top:104px;width:34px;height:24px;background:#6fb1e0;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+          <div style="position:absolute;left:178px;top:86px;font-size:10px;color:#2b6390;font-weight:600">Client Onboard</div>
+
+          <div style="position:absolute;left:100px;top:20px;width:28px;height:20px;background:#9ad19a;border-radius:4px;opacity:.9"></div>
+          <div style="position:absolute;left:98px;top:8px;font-size:10px;color:#3d7a3d;font-weight:600">loose ticket</div>
+
+          <div style="position:absolute;right:14px;bottom:10px;font-size:10px;color:#999">drag freely → proximity = thread</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Explicit thread frames (you choose membership)</h3>
+      <p>Each thread is a named container box you can move around the canvas like a sub-board. Tickets belong to a frame because you dropped them <em>into</em> it, not because of position. Zoomed out, the frame itself shrinks to a labeled card.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-body" style="position:relative;height:180px;border-radius:8px;background:rgba(120,120,120,.05);overflow:hidden">
+          <div style="position:absolute;left:16px;top:14px;width:120px;height:90px;border:2px dashed #f2c14e;border-radius:8px;padding:4px">
+            <div style="font-size:10px;font-weight:700;color:#8a6d1a;margin-bottom:4px">Q3 Report</div>
+            <div style="width:100%;height:16px;background:#f2c14e;border-radius:3px;margin-bottom:4px;opacity:.85"></div>
+            <div style="width:80%;height:16px;background:#f2c14e;border-radius:3px;opacity:.85"></div>
+          </div>
+          <div style="position:absolute;left:160px;top:70px;width:120px;height:80px;border:2px dashed #6fb1e0;border-radius:8px;padding:4px">
+            <div style="font-size:10px;font-weight:700;color:#2b6390;margin-bottom:4px">Client Onboard</div>
+            <div style="width:90%;height:16px;background:#6fb1e0;border-radius:3px;opacity:.85"></div>
+          </div>
+          <div style="position:absolute;right:14px;bottom:8px;font-size:10px;color:#999">drop into a frame → explicit membership</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Category lanes + explicit threads inside (hybrid)</h3>
+      <p>Board is split into fixed category lanes (Work, Personal, Learning…). Inside each lane, threads are still explicit named groups (like B), so clustering is only ever within one category — simpler to reason about and query.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-body" style="position:relative;height:180px;border-radius:8px;overflow:hidden;display:flex">
+          <div style="flex:1;background:rgba(242,193,78,.10);padding:8px;border-right:1px solid rgba(120,120,120,.2)">
+            <div style="font-size:10px;font-weight:700;color:#8a6d1a;margin-bottom:6px">WORK</div>
+            <div style="border:1px solid #f2c14e;border-radius:6px;padding:4px;margin-bottom:6px">
+              <div style="font-size:9px;font-weight:600;color:#8a6d1a">Q3 Report</div>
+              <div style="width:100%;height:10px;background:#f2c14e;border-radius:2px;margin-top:3px;opacity:.85"></div>
+            </div>
+          </div>
+          <div style="flex:1;background:rgba(111,177,224,.10);padding:8px">
+            <div style="font-size:10px;font-weight:700;color:#2b6390;margin-bottom:6px">PERSONAL</div>
+            <div style="border:1px solid #6fb1e0;border-radius:6px;padding:4px">
+              <div style="font-size:9px;font-weight:600;color:#2b6390">Move Flat</div>
+              <div style="width:100%;height:10px;background:#6fb1e0;border-radius:2px;margin-top:3px;opacity:.85"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section pros-cons" style="margin-top:6px">
+  <div class="pros"><h4>A — Free canvas feels magical, but</h4><ul><li>Clustering must be inferred (fuzzy: what counts as "close enough"?)</li><li>Harder to guarantee a ticket has exactly one thread</li><li>Needs a real clustering/layout algorithm to build and tune</li></ul></div>
+  <div class="cons"><h4>B / C — Explicit membership</h4><ul><li>A ticket's thread is a simple foreign key — easy, reliable, fast to build</li><li>You still drag tickets freely; the "thread" is just what frame they're in</li><li>C adds fixed category lanes on top of B for extra structure</li></ul></div>
+</div>

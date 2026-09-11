@@ -1,0 +1,45 @@
+<h2>Zoom levels: what shows at each level of detail?</h2>
+<p class="subtitle">Left = zoomed out (thread label only). Right = zoomed in (full ticket cards). Does this match what you pictured?</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Zoomed out</div>
+    <div class="mockup-body" style="position:relative;height:220px;background:repeating-linear-gradient(0deg,transparent,transparent 17px,rgba(120,120,120,.06) 18px);border-radius:8px;overflow:hidden">
+      <div style="position:absolute;left:30px;top:40px;width:90px;height:34px;background:#f2c14e;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#5c4813;box-shadow:0 2px 6px rgba(0,0,0,.15)">Q3 Report</div>
+      <div style="position:absolute;left:140px;top:120px;width:110px;height:34px;background:#6fb1e0;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1c3f57;box-shadow:0 2px 6px rgba(0,0,0,.15)">Client Onboard</div>
+      <div style="position:absolute;left:60px;top:150px;width:70px;height:34px;background:#9ad19a;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#2c522c;box-shadow:0 2px 6px rgba(0,0,0,.15)">Gym</div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">Zoomed in</div>
+    <div class="mockup-body" style="position:relative;height:220px;background:repeating-linear-gradient(0deg,transparent,transparent 17px,rgba(120,120,120,.06) 18px);border-radius:8px;overflow:hidden;padding:10px">
+      <div style="width:150px;background:#fff;border-left:4px solid #f2c14e;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:8px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:#333">Draft exec summary</div>
+        <div style="display:flex;gap:4px;margin-top:6px;align-items:center">
+          <span style="font-size:9px;background:#eef;color:#446;padding:2px 6px;border-radius:10px">In Progress</span>
+          <span style="font-size:9px;background:#fee;color:#a33;padding:2px 6px;border-radius:10px">High</span>
+        </div>
+        <div style="font-size:9px;color:#999;margin-top:5px">💬 3 updates</div>
+      </div>
+      <div style="width:150px;margin-left:40px;background:#fff;border-left:4px solid #f2c14e;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:8px">
+        <div style="font-size:11px;font-weight:700;color:#333">Pull Q3 metrics</div>
+        <div style="display:flex;gap:4px;margin-top:6px;align-items:center">
+          <span style="font-size:9px;background:#efe;color:#373;padding:2px 6px;border-radius:10px">To Do</span>
+          <span style="font-size:9px;background:#ffe;color:#a80;padding:2px 6px;border-radius:10px">Medium</span>
+        </div>
+        <div style="font-size:9px;color:#999;margin-top:5px">💬 0 updates</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:14px">
+  <div class="option" data-choice="matches" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>Yes, this matches</h3><p>Two-tier zoom (label bubble ↔ full cards with status/priority/comment-count) is right for now.</p></div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content"><h3>Close, but adjust</h3><p>Tell me what to change in the terminal.</p></div>
+  </div>
+</div>
