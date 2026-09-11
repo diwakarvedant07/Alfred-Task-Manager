@@ -1,0 +1,11 @@
+import { db } from "@/lib/db";
+
+export async function resetDb() {
+  await db.taskUpdate.deleteMany();
+  await db.taskPosition.deleteMany();
+  await db.taskThreadLink.deleteMany();
+  await db.threadShare.deleteMany();
+  await db.task.deleteMany();
+  await db.thread.deleteMany();
+  await db.user.deleteMany();
+}

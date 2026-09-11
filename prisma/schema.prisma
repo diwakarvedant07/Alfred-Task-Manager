@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ThemeMode {
+  LIGHT
+  DARK
+}
+
+enum ThreadStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+enum TaskWorkStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskLifecycleStatus {
+  ACTIVE
+  DELETED
+}
+
+enum SharePermission {
+  VIEWER
+  EDITOR
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  themeMode    ThemeMode @default(DARK)
+  accentColor  String    @default("#38e0ff")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  ownedThreads   Thread[]       @relation("ThreadOwner")
+  taskUpdates    TaskUpdate[]
+  taskPositions  TaskPosition[]
+  sharesReceived ThreadShare[]  @relation("ShareRecipient")
+}
+
+model Thread {
+  id            String       @id @default(cuid())
+  ownerId       String
+  owner         User         @relation("ThreadOwner", fields: [ownerId], references: [id])
+  name          String
+  categoryColor String
+  status        ThreadStatus @default(ACTIVE)
+  deletedAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  primaryTasks   Task[]           @relation("PrimaryThread")
+  secondaryLinks TaskThreadLink[]
+  shares         ThreadShare[]
+
+  @@index([ownerId, status])
+}
+
+model Task {
+  id              String              @id @default(cuid())
+  primaryThreadId String
+  primaryThread   Thread              @relation("PrimaryThread", fields: [primaryThreadId], references: [id])
+  title           String
+  description     String              @default("")
+  workStatus      TaskWorkStatus      @default(TODO)
+  priority        TaskPriority        @default(MEDIUM)
+  dueDate         DateTime?
+  lifecycleStatus TaskLifecycleStatus @default(ACTIVE)
+  deletedAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  secondaryThreadLinks TaskThreadLink[]
+  updates              TaskUpdate[]
+  positions            TaskPosition[]
+
+  @@index([primaryThreadId, lifecycleStatus])
+}
+
+model TaskThreadLink {
+  taskId   String
+  threadId String
+  task     Task   @relation(fields: [taskId], references: [id])
+  thread   Thread @relation(fields: [threadId], references: [id])
+
+  @@id([taskId, threadId])
+}
+
+model TaskUpdate {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+model TaskPosition {
+  taskId    String
+  userId    String
+  task      Task   @relation(fields: [taskId], references: [id])
+  user      User   @relation(fields: [userId], references: [id])
+  positionX Float
+  positionY Float
+
+  @@id([taskId, userId])
+}
+
+model ThreadShare {
+  id               String          @id @default(cuid())
+  threadId         String
+  thread           Thread          @relation(fields: [threadId], references: [id])
+  sharedWithUserId String
+  sharedWithUser   User            @relation("ShareRecipient", fields: [sharedWithUserId], references: [id])
+  permission       SharePermission
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([threadId, sharedWithUserId])
+}
