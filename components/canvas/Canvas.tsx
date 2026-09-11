@@ -21,13 +21,13 @@ import ShareThreadDialog from "./ShareThreadDialog";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
 import { saveTaskPosition } from "@/app/actions/taskPositions";
 import { createThread } from "@/app/actions/threads";
-import { createTask, updateTask } from "@/app/actions/tasks";
+import { createTask, updateTask, deleteTask, moveTaskToThread, linkSecondaryThread } from "@/app/actions/tasks";
 import { shareThread } from "@/app/actions/threadShares";
 import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
 
 const nodeTypes = { task: TaskNode, threadBubble: ThreadBubbleNode };
 
-type ThreadSummary = { id: string; name: string; categoryColor: string };
+type ThreadSummary = { id: string; name: string; categoryColor: string; role: "OWNER" | "EDITOR" | "VIEWER" };
 type TaskSummary = {
   id: string;
   primaryThreadId: string;
@@ -79,6 +79,53 @@ function CanvasInner({
     [taskEditOverrides]
   );
 
+  // Opens the detail panel for a task — shared by clicking the card and by
+  // the card menu's "Rename" item (which reuses the panel's editable Title
+  // field rather than duplicating a separate rename prompt).
+  const openTask = useCallback(async (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setSelectedTaskUpdates(await listTaskUpdates(taskId));
+  }, []);
+
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      await deleteTask(taskId);
+      setSelectedTaskId((current) => (current === taskId ? null : current));
+      router.refresh();
+    },
+    [router]
+  );
+
+  const handleMoveToThread = useCallback(
+    async (taskId: string) => {
+      const targetName = window.prompt("Move to which thread? Enter the thread name.");
+      if (!targetName) return;
+      const target = threads.find((t) => t.name === targetName);
+      if (!target) {
+        window.alert(`No thread named "${targetName}" found.`);
+        return;
+      }
+      await moveTaskToThread(taskId, target.id);
+      router.refresh();
+    },
+    [threads, router]
+  );
+
+  const handleLinkSecondaryThread = useCallback(
+    async (taskId: string) => {
+      const targetName = window.prompt("Link which secondary thread? Enter the thread name.");
+      if (!targetName) return;
+      const target = threads.find((t) => t.name === targetName);
+      if (!target) {
+        window.alert(`No thread named "${targetName}" found.`);
+        return;
+      }
+      await linkSecondaryThread(taskId, target.id);
+      router.refresh();
+    },
+    [threads, router]
+  );
+
   const nodes = useMemo<Node[]>(() => {
     if (tier === "BUBBLE") {
       return threads.map((thread) => {
@@ -106,10 +153,14 @@ function CanvasInner({
           workStatus: effective.workStatus,
           priority: effective.priority,
           updateCount: effective.updateCount,
+          onRename: () => openTask(task.id),
+          onMoveToThread: () => handleMoveToThread(task.id),
+          onLinkSecondaryThread: () => handleLinkSecondaryThread(task.id),
+          onDelete: () => handleDeleteTask(task.id),
         },
       };
     });
-  }, [tier, threads, tasks, positions, withOverride]);
+  }, [tier, threads, tasks, positions, withOverride, openTask, handleMoveToThread, handleLinkSecondaryThread, handleDeleteTask]);
 
   const handleMoveEnd = useCallback(() => {
     setTier(getZoomTier(getZoom()));
@@ -121,11 +172,13 @@ function CanvasInner({
     }
   }, []);
 
-  const handleNodeClick = useCallback(async (_: unknown, node: Node) => {
-    if (node.type !== "task") return;
-    setSelectedTaskId(node.id);
-    setSelectedTaskUpdates(await listTaskUpdates(node.id));
-  }, []);
+  const handleNodeClick = useCallback(
+    async (_: unknown, node: Node) => {
+      if (node.type !== "task") return;
+      await openTask(node.id);
+    },
+    [openTask]
+  );
 
   const handleCreateThread = useCallback(
     async (input: { name: string; categoryColor: string }) => {
@@ -153,6 +206,13 @@ function CanvasInner({
 
   const baseSelectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedTask = baseSelectedTask ? withOverride(baseSelectedTask) : null;
+  const selectedTaskThread = selectedTask
+    ? threads.find((t) => t.id === selectedTask.primaryThreadId)
+    : undefined;
+  // Viewers can comment but not edit task fields (server-enforced too, via
+  // requireTaskManageRole in the updateTask action) — disable the editable
+  // controls in the panel so that's visible, not just rejected silently.
+  const canEditSelectedTask = selectedTaskThread ? selectedTaskThread.role !== "VIEWER" : true;
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -190,6 +250,7 @@ function CanvasInner({
           <TaskDetailPanel
             task={selectedTask}
             updates={selectedTaskUpdates}
+            canEdit={canEditSelectedTask}
             onUpdateTask={async (patch) => {
               // Apply synchronously so the displayed value always reflects
               // the most recently typed edit, regardless of how long the
@@ -202,7 +263,14 @@ function CanvasInner({
                 ...prev,
                 [taskId]: { ...prev[taskId], ...patch },
               }));
-              await updateTask(taskId, patch);
+              try {
+                await updateTask(taskId, patch);
+              } catch {
+                // The panel disables editing controls for viewers, so this
+                // only fires if the server's own permission check (the
+                // authoritative one) rejects something the client allowed —
+                // swallow rather than crash the canvas.
+              }
             }}
             onAddComment={async (body) => {
               await addTaskUpdate(selectedTask.id, body);

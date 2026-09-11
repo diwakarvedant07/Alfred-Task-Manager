@@ -43,6 +43,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
       onPointerDown={startLongPress}
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
+      onClick={(e) => e.stopPropagation()}
       style={{ position: "relative" }}
     >
       <button aria-label="More actions" onClick={() => setOpen((o) => !o)}>

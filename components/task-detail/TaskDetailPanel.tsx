@@ -19,12 +19,17 @@ export default function TaskDetailPanel({
   onUpdateTask,
   onAddComment,
   onClose,
+  canEdit = true,
 }: {
   task: Task;
   updates: TaskUpdateItem[];
   onUpdateTask: (patch: Partial<Pick<Task, "title" | "description" | "workStatus" | "priority" | "dueDate">>) => void;
   onAddComment: (body: string) => void;
   onClose: () => void;
+  // Viewers can read and comment on a shared thread's tasks but not edit
+  // them (enforced server-side too) — defaults to true so callers that
+  // don't track roles (and existing tests) keep every field editable.
+  canEdit?: boolean;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -32,14 +37,18 @@ export default function TaskDetailPanel({
     <div role="dialog" aria-label="Task detail" style={{ background: "var(--panel-bg)", color: "var(--text)" }}>
       <button aria-label="Close" onClick={onClose}>×</button>
 
+      {!canEdit && <p>You have view-only access to this thread.</p>}
+
       <input
         aria-label="Title"
         value={task.title}
+        disabled={!canEdit}
         onChange={(e) => onUpdateTask({ title: e.target.value })}
       />
       <textarea
         aria-label="Description"
         value={task.description}
+        disabled={!canEdit}
         onChange={(e) => onUpdateTask({ description: e.target.value })}
       />
 
@@ -48,6 +57,7 @@ export default function TaskDetailPanel({
         <select
           aria-label="Work status"
           value={task.workStatus}
+          disabled={!canEdit}
           onChange={(e) => onUpdateTask({ workStatus: e.target.value as Task["workStatus"] })}
         >
           <option value="TODO">To Do</option>
@@ -61,6 +71,7 @@ export default function TaskDetailPanel({
         <select
           aria-label="Priority"
           value={task.priority}
+          disabled={!canEdit}
           onChange={(e) => onUpdateTask({ priority: e.target.value as Task["priority"] })}
         >
           <option value="LOW">Low</option>

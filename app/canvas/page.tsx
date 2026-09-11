@@ -11,11 +11,10 @@ export default async function CanvasPage() {
   const ownThreads = await db.thread.findMany({
     where: { ownerId: userId, status: "ACTIVE" },
   });
-  const sharedThreadIds = (
-    await db.threadShare.findMany({ where: { sharedWithUserId: userId } })
-  ).map((s) => s.threadId);
+  const myShares = await db.threadShare.findMany({ where: { sharedWithUserId: userId } });
+  const sharePermissionByThreadId = new Map(myShares.map((s) => [s.threadId, s.permission]));
   const sharedThreads = await db.thread.findMany({
-    where: { id: { in: sharedThreadIds }, status: "ACTIVE" },
+    where: { id: { in: myShares.map((s) => s.threadId) }, status: "ACTIVE" },
   });
   const threads = [...ownThreads, ...sharedThreads];
 
@@ -34,7 +33,12 @@ export default async function CanvasPage() {
   return (
     <ThemeProvider themeMode={user.themeMode} accentColor={user.accentColor}>
       <Canvas
-        threads={threads.map((t) => ({ id: t.id, name: t.name, categoryColor: t.categoryColor }))}
+        threads={threads.map((t) => ({
+          id: t.id,
+          name: t.name,
+          categoryColor: t.categoryColor,
+          role: t.ownerId === userId ? ("OWNER" as const) : sharePermissionByThreadId.get(t.id)!,
+        }))}
         tasks={tasks.map((t) => ({
           id: t.id,
           primaryThreadId: t.primaryThreadId,
