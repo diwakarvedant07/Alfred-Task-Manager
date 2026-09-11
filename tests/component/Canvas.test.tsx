@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Canvas from "@/components/canvas/Canvas";
 import { updateTask } from "@/app/actions/tasks";
@@ -42,10 +42,13 @@ const task = {
   updateCount: 0,
 };
 
+beforeEach(() => {
+  vi.mocked(listTaskUpdates).mockReset().mockResolvedValue([]);
+  vi.mocked(updateTask).mockReset();
+});
+
 describe("Canvas — task edit race condition", () => {
   it("keeps the most recently typed title even when an earlier keystroke's save resolves later", async () => {
-    vi.mocked(listTaskUpdates).mockResolvedValue([]);
-
     // Two in-flight updateTask calls whose completion order is the reverse
     // of the order they were called in — the exact scenario that used to
     // cause an earlier keystroke to clobber a later one via router.refresh().
@@ -80,5 +83,36 @@ describe("Canvas — task edit race condition", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(screen.getByLabelText("Title")).toHaveValue("First edit 2");
+  });
+
+  it("keeps an edit visible on the canvas node, and after closing and reopening the panel", async () => {
+    vi.mocked(updateTask).mockResolvedValue(
+      undefined as unknown as Awaited<ReturnType<typeof updateTask>>
+    );
+
+    render(<Canvas threads={[]} tasks={[task]} positions={{}} />);
+
+    // Open the panel and edit the title.
+    fireEvent.click(screen.getByText("Original title"));
+    const titleInput = await screen.findByLabelText("Title");
+    fireEvent.change(titleInput, { target: { value: "Edited title" } });
+
+    await waitFor(() => expect(updateTask).toHaveBeenCalledWith("t1", { title: "Edited title" }));
+
+    // (a) The canvas node itself — not just the open panel — reflects the
+    // edit. It's rendered from `nodes`/TaskNode as plain text, so this
+    // query only matches the node, not the panel's <input>.
+    expect(screen.getByText("Edited title")).toBeInTheDocument();
+
+    // Close the panel.
+    fireEvent.click(screen.getByLabelText("Close"));
+    await waitFor(() => expect(screen.queryByLabelText("Title")).not.toBeInTheDocument());
+
+    // (b) Re-click the same (now-renamed) node to reopen the panel. It
+    // must still show the edited value, not fall back to the stale
+    // `tasks` prop's "Original title".
+    fireEvent.click(screen.getByText("Edited title"));
+    const reopenedTitleInput = await screen.findByLabelText("Title");
+    expect(reopenedTitleInput).toHaveValue("Edited title");
   });
 });

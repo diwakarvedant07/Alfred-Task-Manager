@@ -56,11 +56,28 @@ function CanvasInner({
   const [selectedTaskUpdates, setSelectedTaskUpdates] = useState<
     { id: string; body: string; authorId: string; createdAt: Date }[]
   >([]);
-  // Local, synchronous overrides for the currently-open task's in-progress
-  // edits. Server round-trips (updateTask calls) fire per keystroke and can
+  // Local, synchronous overrides for in-progress task edits, keyed by task
+  // id. Server round-trips (updateTask calls) fire per keystroke and can
   // resolve out of order, so what's displayed must never depend on their
-  // timing — only on the order these edits were made.
-  const [taskEditOverride, setTaskEditOverride] = useState<Partial<TaskSummary> | null>(null);
+  // timing — only on the order these edits were made. These are persistent
+  // per task (not scoped to "whichever task is currently open") so that
+  // both the canvas node and the detail panel keep showing an edit after
+  // the panel is closed and reopened, or a different task is selected and
+  // this one is re-selected — not just while the panel that made the edit
+  // is still open.
+  //
+  // Known limitation: an override is never automatically cleared once the
+  // `tasks` prop catches up with it (e.g. via a later router.refresh() from
+  // an unrelated action). For this project's current scope that's an
+  // acceptable simplification rather than building full reconciliation —
+  // the override always reflects the most recent edit made in this session,
+  // which is what matters for the UI never appearing to revert.
+  const [taskEditOverrides, setTaskEditOverrides] = useState<Record<string, Partial<TaskSummary>>>({});
+
+  const withOverride = useCallback(
+    (task: TaskSummary): TaskSummary => ({ ...task, ...taskEditOverrides[task.id] }),
+    [taskEditOverrides]
+  );
 
   const nodes = useMemo<Node[]>(() => {
     if (tier === "BUBBLE") {
@@ -78,18 +95,21 @@ function CanvasInner({
         };
       });
     }
-    return tasks.map((task) => ({
-      id: task.id,
-      type: "task",
-      position: positions[task.id] ?? { x: 0, y: 0 },
-      data: {
-        title: task.title,
-        workStatus: task.workStatus,
-        priority: task.priority,
-        updateCount: task.updateCount,
-      },
-    }));
-  }, [tier, threads, tasks, positions]);
+    return tasks.map((task) => {
+      const effective = withOverride(task);
+      return {
+        id: task.id,
+        type: "task",
+        position: positions[task.id] ?? { x: 0, y: 0 },
+        data: {
+          title: effective.title,
+          workStatus: effective.workStatus,
+          priority: effective.priority,
+          updateCount: effective.updateCount,
+        },
+      };
+    });
+  }, [tier, threads, tasks, positions, withOverride]);
 
   const handleMoveEnd = useCallback(() => {
     setTier(getZoomTier(getZoom()));
@@ -104,7 +124,6 @@ function CanvasInner({
   const handleNodeClick = useCallback(async (_: unknown, node: Node) => {
     if (node.type !== "task") return;
     setSelectedTaskId(node.id);
-    setTaskEditOverride(null);
     setSelectedTaskUpdates(await listTaskUpdates(node.id));
   }, []);
 
@@ -133,9 +152,7 @@ function CanvasInner({
   );
 
   const baseSelectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
-  const selectedTask = baseSelectedTask
-    ? { ...baseSelectedTask, ...taskEditOverride }
-    : null;
+  const selectedTask = baseSelectedTask ? withOverride(baseSelectedTask) : null;
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -176,18 +193,22 @@ function CanvasInner({
             onUpdateTask={async (patch) => {
               // Apply synchronously so the displayed value always reflects
               // the most recently typed edit, regardless of how long the
-              // Server Action call below takes or the order responses land in.
-              setTaskEditOverride((prev) => ({ ...prev, ...patch }));
-              await updateTask(selectedTask.id, patch);
+              // Server Action call below takes or the order responses land
+              // in. Keyed by task id and never cleared on close/re-select,
+              // so the canvas node and a reopened panel both keep showing
+              // the edit instead of falling back to the stale `tasks` prop.
+              const taskId = selectedTask.id;
+              setTaskEditOverrides((prev) => ({
+                ...prev,
+                [taskId]: { ...prev[taskId], ...patch },
+              }));
+              await updateTask(taskId, patch);
             }}
             onAddComment={async (body) => {
               await addTaskUpdate(selectedTask.id, body);
               setSelectedTaskUpdates(await listTaskUpdates(selectedTask.id));
             }}
-            onClose={() => {
-              setSelectedTaskId(null);
-              setTaskEditOverride(null);
-            }}
+            onClose={() => setSelectedTaskId(null)}
           />
         </div>
       )}
