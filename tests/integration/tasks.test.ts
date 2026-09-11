@@ -85,4 +85,24 @@ describe("task actions", () => {
     expect(deleted.lifecycleStatus).toBe("DELETED");
     expect(deleted.deletedAt).not.toBeNull();
   });
+
+  it("gives each new task in the same thread a distinct initial position, instead of stacking them all at the origin", async () => {
+    await loginAs(ownerId);
+    const first = await createTask({ primaryThreadId: threadId, title: "First" });
+    const second = await createTask({ primaryThreadId: threadId, title: "Second" });
+    const third = await createTask({ primaryThreadId: threadId, title: "Third" });
+
+    const positions = await db.taskPosition.findMany({
+      where: { taskId: { in: [first.id, second.id, third.id] }, userId: ownerId },
+    });
+    expect(positions).toHaveLength(3);
+
+    const distinctPositions = new Set(positions.map((p) => `${p.positionX},${p.positionY}`));
+    expect(distinctPositions.size).toBe(3);
+
+    // Not every task should default to the canvas origin, which is what
+    // caused every new card (and every BUBBLE-tier thread centroid derived
+    // from them) to render stacked on top of each other.
+    expect(positions.some((p) => p.positionX !== 0 || p.positionY !== 0)).toBe(true);
+  });
 });
