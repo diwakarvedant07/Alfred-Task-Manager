@@ -13,6 +13,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // middleware.ts's matcher only covers /canvas and /recycle-bin, so this
     // gates those routes and redirects unauthenticated requests to /login.
     authorized: ({ auth: session }) => !!session?.user,
+    // `authorize()` below only returns { id, email, name }. By default that
+    // id lands in token.sub but is never copied onto session.user, so every
+    // later task's `(await auth()).user.id` would come back undefined. Copy
+    // it through explicitly: jwt() runs at sign-in with `user` present,
+    // session() runs on every session read and only has the token.
+    jwt({ token, user }) {
+      if (user) token.id = user.id;
+      return token;
+    },
+    session({ session, token }) {
+      if (session.user) session.user.id = token.id as string;
+      return session;
+    },
   },
   providers: [
     Credentials({
