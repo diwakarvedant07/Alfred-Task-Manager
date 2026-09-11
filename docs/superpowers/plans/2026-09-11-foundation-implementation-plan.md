@@ -3235,14 +3235,14 @@ git commit -m "feat: add PWA manifest and service worker registration"
 
 ### Task 19: Creation forms, share dialog, and recycle-bin restore buttons
 
-The Server Actions from Tasks 5, 6, 8, and 16 have no UI entry points yet — this task wires up the remaining forms/buttons so a user can actually create a thread/task, share a thread, and restore/empty the recycle bin from the browser (needed for the end-to-end test in Task 20).
+The Server Actions from Tasks 5, 6, 8, and 16 have no UI entry points yet — this task wires up the remaining forms/buttons so a user can actually create a thread/task, share a thread, and restore/empty the recycle bin from the browser (needed for the end-to-end test in Task 20). It also wires Task 15's `TaskDetailPanel` into the canvas — nothing built so far actually opens it on a task click, and Task 20's end-to-end test depends on clicking a task and seeing the detail panel's comment form.
 
 **Files:**
 - Create: `components/canvas/NewThreadButton.tsx`, `components/canvas/NewTaskButton.tsx`, `components/canvas/ShareThreadDialog.tsx`, `tests/component/NewThreadButton.test.tsx`, `tests/component/ShareThreadDialog.test.tsx`
-- Modify: `components/canvas/Canvas.tsx`, `app/recycle-bin/page.tsx`
+- Modify: `components/canvas/Canvas.tsx`, `app/canvas/page.tsx`, `app/recycle-bin/page.tsx`
 
 **Interfaces:**
-- Consumes: `createThread` (Task 5), `createTask` (Task 6), `shareThread` (Task 8), `restoreThread`, `restoreTask`, `emptyRecycleBin` (Task 16).
+- Consumes: `createThread` (Task 5), `createTask` (Task 6), `updateTask` (Task 6), `shareThread` (Task 8), `addTaskUpdate`, `listTaskUpdates` (Task 7), `restoreThread`, `restoreTask`, `emptyRecycleBin` (Task 16), `TaskDetailPanel` (Task 15).
 - Produces: `NewThreadButton({ onCreate }: { onCreate: (input: { name: string; categoryColor: string }) => void })`; `NewTaskButton({ threadId, onCreate }: { threadId: string; onCreate: (input: { title: string }) => void })`; `ShareThreadDialog({ threadId, onShare }: { threadId: string; onShare: (email: string, permission: "VIEWER" | "EDITOR") => void })`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -3498,16 +3498,74 @@ export default async function RecycleBinPage() {
 }
 ```
 
-- [ ] **Step 8: Run the full test suite**
+- [ ] **Step 8: Wire `TaskDetailPanel` into the canvas**
+
+`app/canvas/page.tsx`'s task query already selects full `Task` rows (Prisma returns every column by default) — extend the plain object it maps into the `tasks` prop passed to `<Canvas>` to also include `description` and `dueDate`, so `Canvas` has everything `TaskDetailPanel` needs without a second fetch for those two fields:
+
+```tsx
+tasks={tasks.map((t) => ({
+  id: t.id,
+  primaryThreadId: t.primaryThreadId,
+  title: t.title,
+  description: t.description,
+  workStatus: t.workStatus,
+  priority: t.priority,
+  dueDate: t.dueDate,
+  updateCount: t._count.updates,
+}))}
+```
+
+In `components/canvas/Canvas.tsx`, extend the `TaskSummary` type with `description: string` and `dueDate: Date | null`, add `selectedTaskId` and `selectedTaskUpdates` state, and render the panel when a task card is clicked:
+
+```tsx
+import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
+import { updateTask } from "@/app/actions/tasks";
+import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
+
+// inside CanvasInner, alongside the existing tier/nodes state:
+const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+const [selectedTaskUpdates, setSelectedTaskUpdates] = useState<
+  { id: string; body: string; authorId: string; createdAt: Date }[]
+>([]);
+
+const handleNodeClick = useCallback(async (_: unknown, node: Node) => {
+  if (node.type !== "task") return;
+  setSelectedTaskId(node.id);
+  setSelectedTaskUpdates(await listTaskUpdates(node.id));
+}, []);
+
+const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+```
+
+Pass `onNodeClick={handleNodeClick}` to `<ReactFlow>` alongside the existing `onNodeDragStop`, and render the panel as a sibling of `<ReactFlow>` inside the same wrapper `<div>`:
+
+```tsx
+{selectedTask && (
+  <TaskDetailPanel
+    task={selectedTask}
+    updates={selectedTaskUpdates}
+    onUpdateTask={async (patch) => {
+      await updateTask(selectedTask.id, patch);
+    }}
+    onAddComment={async (body) => {
+      await addTaskUpdate(selectedTask.id, body);
+      setSelectedTaskUpdates(await listTaskUpdates(selectedTask.id));
+    }}
+    onClose={() => setSelectedTaskId(null)}
+  />
+)}
+```
+
+- [ ] **Step 9: Run the full test suite**
 
 Run: `npm test`
 Expected: PASS (every test from Tasks 1–19)
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add components/canvas/NewThreadButton.tsx components/canvas/NewTaskButton.tsx components/canvas/ShareThreadDialog.tsx app/recycle-bin/page.tsx components/canvas/Canvas.tsx tests/component/NewThreadButton.test.tsx tests/component/ShareThreadDialog.test.tsx
-git commit -m "feat: wire up thread/task creation, sharing, and recycle-bin restore UI"
+git add components/canvas/NewThreadButton.tsx components/canvas/NewTaskButton.tsx components/canvas/ShareThreadDialog.tsx app/recycle-bin/page.tsx app/canvas/page.tsx components/canvas/Canvas.tsx tests/component/NewThreadButton.test.tsx tests/component/ShareThreadDialog.test.tsx
+git commit -m "feat: wire up thread/task creation, sharing, recycle-bin restore, and task detail panel UI"
 ```
 
 ---
