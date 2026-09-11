@@ -19,15 +19,30 @@ import NewThreadButton from "./NewThreadButton";
 import NewTaskButton from "./NewTaskButton";
 import ShareThreadDialog from "./ShareThreadDialog";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
+import AccentColorPicker from "@/components/settings/AccentColorPicker";
+import ThemeToggle from "@/components/settings/ThemeToggle";
+import { themeToCssVariables } from "@/lib/theme";
 import { saveTaskPosition } from "@/app/actions/taskPositions";
-import { createThread } from "@/app/actions/threads";
+import {
+  createThread,
+  renameThread,
+  changeThreadCategoryColor,
+  closeThread,
+  deleteThread,
+} from "@/app/actions/threads";
 import { createTask, updateTask, deleteTask, moveTaskToThread, linkSecondaryThread } from "@/app/actions/tasks";
-import { shareThread } from "@/app/actions/threadShares";
+import { shareThread, listThreadShares, revokeThreadShare } from "@/app/actions/threadShares";
 import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
+import { updateThemePreference } from "@/app/actions/theme";
 
 const nodeTypes = { task: TaskNode, threadBubble: ThreadBubbleNode };
 
 type ThreadSummary = { id: string; name: string; categoryColor: string; role: "OWNER" | "EDITOR" | "VIEWER" };
+type ThreadShareItem = {
+  id: string;
+  permission: "VIEWER" | "EDITOR";
+  sharedWithUser: { name: string; email: string };
+};
 type TaskSummary = {
   id: string;
   primaryThreadId: string;
@@ -44,14 +59,31 @@ function CanvasInner({
   threads,
   tasks,
   positions,
+  themeMode,
+  accentColor,
+  initialTier,
 }: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
   positions: PositionMap;
+  themeMode: "LIGHT" | "DARK";
+  accentColor: string;
+  initialTier?: "BUBBLE" | "CARD";
 }) {
   const { getZoom } = useReactFlow();
   const router = useRouter();
-  const [tier, setTier] = useState<"BUBBLE" | "CARD">("CARD");
+  const [tier, setTier] = useState<"BUBBLE" | "CARD">(initialTier ?? "CARD");
+  // Controlled values for the settings strip's picker/toggle. Kept local so
+  // the controls reflect a change the instant it's made, rather than
+  // waiting on the updateThemePreference round-trip and a router.refresh()
+  // of the layout that actually owns ThemeProvider.
+  const [localThemeMode, setLocalThemeMode] = useState(themeMode);
+  const [localAccentColor, setLocalAccentColor] = useState(accentColor);
+  // Shares loaded per-thread, lazily, when that thread's Share dialog is
+  // opened (listThreadShares is OWNER-only server-side, so this is only
+  // ever wired up for threads the caller owns — see the ShareThreadDialog
+  // usage below).
+  const [threadShares, setThreadShares] = useState<Record<string, ThreadShareItem[]>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTaskUpdates, setSelectedTaskUpdates] = useState<
     { id: string; body: string; authorId: string; createdAt: Date }[]
@@ -126,6 +158,91 @@ function CanvasInner({
     [threads, router]
   );
 
+  // Thread-bubble menu handlers (the BUBBLE-tier equivalent of the task
+  // card's handlers above). Simple prompts/confirms, matching the existing
+  // window.prompt-based stopgaps used for onMoveToThread/onLinkSecondaryThread
+  // above rather than a polished dialog.
+  const handleRenameThread = useCallback(
+    async (threadId: string) => {
+      const current = threads.find((t) => t.id === threadId);
+      const name = window.prompt("Rename thread to:", current?.name ?? "");
+      if (!name) return;
+      await renameThread(threadId, name);
+      router.refresh();
+    },
+    [threads, router]
+  );
+
+  const handleChangeThreadColor = useCallback(
+    async (threadId: string) => {
+      const current = threads.find((t) => t.id === threadId);
+      const color = window.prompt(
+        "New category color (hex, e.g. #38e0ff):",
+        current?.categoryColor ?? "#38e0ff"
+      );
+      if (!color) return;
+      await changeThreadCategoryColor(threadId, color);
+      router.refresh();
+    },
+    [threads, router]
+  );
+
+  const handleCloseThread = useCallback(
+    async (threadId: string) => {
+      if (!window.confirm("Close this thread (archive it)?")) return;
+      await closeThread(threadId);
+      router.refresh();
+    },
+    [router]
+  );
+
+  const handleDeleteThread = useCallback(
+    async (threadId: string) => {
+      if (!window.confirm("Delete this thread? Its tasks will move to the recycle bin too.")) return;
+      await deleteThread(threadId);
+      setSelectedTaskId((current) => {
+        const currentTask = tasks.find((t) => t.id === current);
+        return currentTask?.primaryThreadId === threadId ? null : current;
+      });
+      router.refresh();
+    },
+    [router, tasks]
+  );
+
+  // listThreadShares/revokeThreadShare are OWNER-only server-side
+  // (lib/permissions.ts canManageShares) — only wired up from the
+  // ShareThreadDialog rendered for threads the caller owns, below.
+  const handleLoadThreadShares = useCallback(async (threadId: string) => {
+    const shares = await listThreadShares(threadId);
+    setThreadShares((prev) => ({ ...prev, [threadId]: shares }));
+  }, []);
+
+  const handleRevokeThreadShare = useCallback(
+    async (threadId: string, shareId: string) => {
+      await revokeThreadShare(shareId);
+      await handleLoadThreadShares(threadId);
+    },
+    [handleLoadThreadShares]
+  );
+
+  // Applies the CSS variables immediately (so the change is visible without
+  // waiting on the Server Action + router.refresh() round-trip that
+  // reconciles the layout-level ThemeProvider's own props), then persists
+  // the preference and refreshes so a later navigation/reload is consistent.
+  const handleThemeChange = useCallback(
+    async (mode: "LIGHT" | "DARK", color: string) => {
+      setLocalThemeMode(mode);
+      setLocalAccentColor(color);
+      const vars = themeToCssVariables(mode, color);
+      for (const [key, value] of Object.entries(vars)) {
+        document.documentElement.style.setProperty(key, value);
+      }
+      await updateThemePreference(mode, color);
+      router.refresh();
+    },
+    [router]
+  );
+
   const nodes = useMemo<Node[]>(() => {
     if (tier === "BUBBLE") {
       return threads.map((thread) => {
@@ -138,7 +255,18 @@ function CanvasInner({
           id: thread.id,
           type: "threadBubble",
           position: centroid,
-          data: { name: thread.name, categoryColor: thread.categoryColor },
+          data: {
+            name: thread.name,
+            categoryColor: thread.categoryColor,
+            onRename: () => handleRenameThread(thread.id),
+            onChangeColor: () => handleChangeThreadColor(thread.id),
+            onClose: () => handleCloseThread(thread.id),
+            onDelete: () => handleDeleteThread(thread.id),
+            // lib/permissions.ts: canManageThreadMeta is OWNER+EDITOR,
+            // canCloseOrDeleteThread is OWNER only.
+            canEditMeta: thread.role === "OWNER" || thread.role === "EDITOR",
+            canCloseOrDelete: thread.role === "OWNER",
+          },
         };
       });
     }
@@ -160,7 +288,21 @@ function CanvasInner({
         },
       };
     });
-  }, [tier, threads, tasks, positions, withOverride, openTask, handleMoveToThread, handleLinkSecondaryThread, handleDeleteTask]);
+  }, [
+    tier,
+    threads,
+    tasks,
+    positions,
+    withOverride,
+    openTask,
+    handleMoveToThread,
+    handleLinkSecondaryThread,
+    handleDeleteTask,
+    handleRenameThread,
+    handleChangeThreadColor,
+    handleCloseThread,
+    handleDeleteThread,
+  ]);
 
   const handleMoveEnd = useCallback(() => {
     setTier(getZoomTier(getZoom()));
@@ -225,12 +367,31 @@ function CanvasInner({
               threadId={thread.id}
               onCreate={(input) => handleCreateTask(thread.id, input)}
             />
-            <ShareThreadDialog
-              threadId={thread.id}
-              onShare={(email, permission) => handleShareThread(thread.id, email, permission)}
-            />
+            {/* Sharing (invite/list/revoke) is OWNER-only server-side
+                (lib/permissions.ts canManageShares) — the whole dialog is
+                hidden for an EDITOR/VIEWER rather than shown and rejected. */}
+            {thread.role === "OWNER" && (
+              <ShareThreadDialog
+                threadId={thread.id}
+                onShare={(email, permission) => handleShareThread(thread.id, email, permission)}
+                onOpen={() => handleLoadThreadShares(thread.id)}
+                shares={threadShares[thread.id] ?? []}
+                onRevoke={(shareId) => handleRevokeThreadShare(thread.id, shareId)}
+              />
+            )}
           </div>
         ))}
+      </div>
+
+      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10, display: "flex", alignItems: "center", gap: 12 }}>
+        <AccentColorPicker
+          value={localAccentColor}
+          onChange={(hex) => handleThemeChange(localThemeMode, hex)}
+        />
+        <ThemeToggle
+          value={localThemeMode}
+          onChange={(mode) => handleThemeChange(mode, localAccentColor)}
+        />
       </div>
 
       <ReactFlow
@@ -288,6 +449,13 @@ export default function Canvas(props: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
   positions: PositionMap;
+  themeMode: "LIGHT" | "DARK";
+  accentColor: string;
+  // Seeds the initial zoom tier — primarily so tests can render straight
+  // into the BUBBLE tier (thread bubbles) without simulating a real
+  // ReactFlow zoom gesture, which jsdom can't do. Defaults to "CARD",
+  // matching the previous hardcoded initial state.
+  initialTier?: "BUBBLE" | "CARD";
 }) {
   return (
     <div style={{ width: "100%", height: "100vh", background: "var(--bg)" }}>

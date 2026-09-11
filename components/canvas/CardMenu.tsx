@@ -16,6 +16,13 @@ type ThreadMenuProps = {
   onChangeColor: () => void;
   onClose: () => void;
   onDelete: () => void;
+  // Mirrors lib/permissions.ts's canManageThreadMeta/canCloseOrDeleteThread,
+  // which the Server Actions these buttons call already enforce — hiding
+  // the items here just keeps the UI from offering something the server
+  // will reject. Default true so existing callers/tests that don't pass
+  // these (and can't know a role) keep seeing every item.
+  canEditMeta?: boolean;
+  canCloseOrDelete?: boolean;
 };
 
 const LONG_PRESS_MS = 450;
@@ -60,10 +67,18 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
             </>
           ) : (
             <>
-              <button role="menuitem" onClick={() => runAndClose(props.onRename)}>Rename thread</button>
-              <button role="menuitem" onClick={() => runAndClose(props.onChangeColor)}>Change category color</button>
-              <button role="menuitem" onClick={() => runAndClose(props.onClose)}>Close thread</button>
-              <button role="menuitem" onClick={() => runAndClose(props.onDelete)}>Delete thread</button>
+              {(props.canEditMeta ?? true) && (
+                <>
+                  <button role="menuitem" onClick={() => runAndClose(props.onRename)}>Rename thread</button>
+                  <button role="menuitem" onClick={() => runAndClose(props.onChangeColor)}>Change category color</button>
+                </>
+              )}
+              {(props.canCloseOrDelete ?? true) && (
+                <>
+                  <button role="menuitem" onClick={() => runAndClose(props.onClose)}>Close thread</button>
+                  <button role="menuitem" onClick={() => runAndClose(props.onDelete)}>Delete thread</button>
+                </>
+              )}
             </>
           )}
         </div>

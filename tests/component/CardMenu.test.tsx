@@ -41,6 +41,44 @@ describe("CardMenu", () => {
     expect(screen.queryByText("Move to thread…")).not.toBeInTheDocument();
   });
 
+  it("hides Rename/Change color for a thread variant when canEditMeta is false", () => {
+    render(
+      <CardMenu
+        variant="thread"
+        onRename={vi.fn()}
+        onChangeColor={vi.fn()}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+        canEditMeta={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByText("Rename thread")).not.toBeInTheDocument();
+    expect(screen.queryByText("Change category color")).not.toBeInTheDocument();
+    // Close/Delete default to visible since canCloseOrDelete wasn't passed.
+    expect(screen.getByText("Close thread")).toBeInTheDocument();
+  });
+
+  it("hides Close/Delete for a thread variant when canCloseOrDelete is false", () => {
+    render(
+      <CardMenu
+        variant="thread"
+        onRename={vi.fn()}
+        onChangeColor={vi.fn()}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+        canCloseOrDelete={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.queryByText("Close thread")).not.toBeInTheDocument();
+    expect(screen.queryByText("Delete thread")).not.toBeInTheDocument();
+    // Rename/Change color default to visible since canEditMeta wasn't passed.
+    expect(screen.getByText("Rename thread")).toBeInTheDocument();
+  });
+
   it("opens on long-press (pointer down held past the threshold)", () => {
     vi.useFakeTimers();
     const onRename = vi.fn();

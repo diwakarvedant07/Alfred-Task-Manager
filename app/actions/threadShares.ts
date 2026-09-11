@@ -36,7 +36,12 @@ export async function shareThread(threadId: string, email: string, permission: "
 export async function listThreadShares(threadId: string) {
   const userId = await requireUserId();
   await requireOwnerRole(threadId, userId);
-  return db.threadShare.findMany({ where: { threadId } });
+  // Includes the recipient's name/email so a share-management UI can show
+  // "who" a thread is shared with, not just an opaque sharedWithUserId.
+  return db.threadShare.findMany({
+    where: { threadId },
+    include: { sharedWithUser: { select: { name: true, email: true } } },
+  });
 }
 
 export async function revokeThreadShare(shareId: string) {

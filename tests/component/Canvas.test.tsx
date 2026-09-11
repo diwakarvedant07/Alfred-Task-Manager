@@ -3,6 +3,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Canvas from "@/components/canvas/Canvas";
 import { updateTask } from "@/app/actions/tasks";
 import { listTaskUpdates } from "@/app/actions/taskUpdates";
+import { renameThread, changeThreadCategoryColor, closeThread, deleteThread } from "@/app/actions/threads";
+import { listThreadShares, revokeThreadShare } from "@/app/actions/threadShares";
+import { updateThemePreference } from "@/app/actions/theme";
 
 // @xyflow/react measures node dimensions with ResizeObserver, which jsdom
 // does not implement. A no-op stub is the standard way to render ReactFlow
@@ -20,8 +23,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/app/actions/taskPositions", () => ({ saveTaskPosition: vi.fn() }));
-vi.mock("@/app/actions/threads", () => ({ createThread: vi.fn() }));
-vi.mock("@/app/actions/threadShares", () => ({ shareThread: vi.fn() }));
+vi.mock("@/app/actions/threads", () => ({
+  createThread: vi.fn(),
+  renameThread: vi.fn(),
+  changeThreadCategoryColor: vi.fn(),
+  closeThread: vi.fn(),
+  deleteThread: vi.fn(),
+}));
+vi.mock("@/app/actions/threadShares", () => ({
+  shareThread: vi.fn(),
+  listThreadShares: vi.fn(async () => []),
+  revokeThreadShare: vi.fn(),
+}));
 vi.mock("@/app/actions/tasks", () => ({
   createTask: vi.fn(),
   updateTask: vi.fn(),
@@ -30,6 +43,7 @@ vi.mock("@/app/actions/taskUpdates", () => ({
   addTaskUpdate: vi.fn(),
   listTaskUpdates: vi.fn(async () => []),
 }));
+vi.mock("@/app/actions/theme", () => ({ updateThemePreference: vi.fn() }));
 
 const task = {
   id: "t1",
@@ -42,9 +56,20 @@ const task = {
   updateCount: 0,
 };
 
+const defaultThemeProps = { themeMode: "DARK" as const, accentColor: "#38e0ff" };
+
 beforeEach(() => {
   vi.mocked(listTaskUpdates).mockReset().mockResolvedValue([]);
   vi.mocked(updateTask).mockReset();
+  vi.mocked(renameThread).mockReset().mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof renameThread>>);
+  vi.mocked(changeThreadCategoryColor)
+    .mockReset()
+    .mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof changeThreadCategoryColor>>);
+  vi.mocked(closeThread).mockReset().mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof closeThread>>);
+  vi.mocked(deleteThread).mockReset().mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof deleteThread>>);
+  vi.mocked(listThreadShares).mockReset().mockResolvedValue([]);
+  vi.mocked(revokeThreadShare).mockReset().mockResolvedValue(undefined);
+  vi.mocked(updateThemePreference).mockReset();
 });
 
 describe("Canvas — task edit race condition", () => {
@@ -60,7 +85,7 @@ describe("Canvas — task edit race condition", () => {
     }
     vi.mocked(updateTask).mockImplementation(fakeUpdateTask as unknown as typeof updateTask);
 
-    render(<Canvas threads={[]} tasks={[task]} positions={{}} />);
+    render(<Canvas threads={[]} tasks={[task]} positions={{}} {...defaultThemeProps} />);
 
     fireEvent.click(screen.getByText("Original title"));
 
@@ -90,7 +115,7 @@ describe("Canvas — task edit race condition", () => {
       undefined as unknown as Awaited<ReturnType<typeof updateTask>>
     );
 
-    render(<Canvas threads={[]} tasks={[task]} positions={{}} />);
+    render(<Canvas threads={[]} tasks={[task]} positions={{}} {...defaultThemeProps} />);
 
     // Open the panel and edit the title.
     fireEvent.click(screen.getByText("Original title"));
@@ -114,5 +139,148 @@ describe("Canvas — task edit race condition", () => {
     fireEvent.click(screen.getByText("Edited title"));
     const reopenedTitleInput = await screen.findByLabelText("Title");
     expect(reopenedTitleInput).toHaveValue("Edited title");
+  });
+});
+
+const ownerThread = { id: "th1", name: "Q3 Report", categoryColor: "#f2c14e", role: "OWNER" as const };
+const editorThread = { id: "th1", name: "Q3 Report", categoryColor: "#f2c14e", role: "EDITOR" as const };
+
+describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
+  it("renames a thread via the bubble's card menu, calling the real renameThread Server Action", async () => {
+    const originalPrompt = window.prompt;
+    window.prompt = vi.fn(() => "Renamed thread");
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(screen.getByText("Rename thread"));
+
+    await waitFor(() => expect(renameThread).toHaveBeenCalledWith("th1", "Renamed thread"));
+
+    window.prompt = originalPrompt;
+  });
+
+  it("deletes a thread via the bubble's card menu after confirmation, calling the real deleteThread Server Action", async () => {
+    const originalConfirm = window.confirm;
+    window.confirm = vi.fn(() => true);
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(screen.getByText("Delete thread"));
+
+    await waitFor(() => expect(deleteThread).toHaveBeenCalledWith("th1"));
+
+    window.confirm = originalConfirm;
+  });
+
+  it("does not call closeThread/deleteThread when the confirmation is declined", async () => {
+    const originalConfirm = window.confirm;
+    window.confirm = vi.fn(() => false);
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(screen.getByText("Delete thread"));
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(deleteThread).not.toHaveBeenCalled();
+
+    window.confirm = originalConfirm;
+  });
+
+  it("hides Close/Delete for a thread the caller only has EDITOR access to, matching the server's canCloseOrDeleteThread rule", () => {
+    render(
+      <Canvas
+        threads={[editorThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByText("⋮"));
+    expect(screen.getByText("Rename thread")).toBeInTheDocument();
+    expect(screen.queryByText("Close thread")).not.toBeInTheDocument();
+    expect(screen.queryByText("Delete thread")).not.toBeInTheDocument();
+  });
+});
+
+describe("Canvas — theme settings (Finding 1 wiring)", () => {
+  it("calls updateThemePreference with the new accent color when the color picker changes", async () => {
+    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+
+    fireEvent.change(screen.getByLabelText("Accent color"), { target: { value: "#ff5fa8" } });
+
+    await waitFor(() => expect(updateThemePreference).toHaveBeenCalledWith("DARK", "#ff5fa8"));
+  });
+
+  it("calls updateThemePreference with the toggled mode when the theme toggle is clicked", async () => {
+    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+
+    fireEvent.click(screen.getByRole("switch"));
+
+    await waitFor(() => expect(updateThemePreference).toHaveBeenCalledWith("LIGHT", "#38e0ff"));
+  });
+
+  it("applies the chosen accent color to the document root immediately, without waiting on the Server Action", () => {
+    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+
+    fireEvent.change(screen.getByLabelText("Accent color"), { target: { value: "#ff5fa8" } });
+
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#ff5fa8");
+  });
+});
+
+describe("Canvas — thread sharing management (Finding 2)", () => {
+  it("only shows the Share control to a thread's OWNER, not an EDITOR", () => {
+    const { rerender } = render(
+      <Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />
+    );
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+
+    rerender(<Canvas threads={[editorThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
+  });
+
+  it("loads and can revoke a thread's shares through the real Server Actions", async () => {
+    vi.mocked(listThreadShares).mockResolvedValue([
+      { id: "share1", permission: "VIEWER", sharedWithUser: { name: "Vera", email: "vera@example.com" } },
+    ] as unknown as Awaited<ReturnType<typeof listThreadShares>>);
+
+    render(<Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Share" }));
+    await waitFor(() => expect(listThreadShares).toHaveBeenCalledWith("th1"));
+
+    const revokeButton = await screen.findByRole("button", { name: "Revoke" });
+    fireEvent.click(revokeButton);
+
+    await waitFor(() => expect(revokeThreadShare).toHaveBeenCalledWith("share1"));
   });
 });

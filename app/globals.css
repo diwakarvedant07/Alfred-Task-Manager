@@ -24,3 +24,16 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Arc Reactor HUD glow: consumes --accent and --glow-opacity, both computed
+   by lib/theme.ts (themeToCssVariables) and applied to the document root by
+   ThemeProvider. --glow-opacity alone was previously computed and stored
+   but never read by any rule — this is that missing consumer. color-mix()
+   blends the user's chosen accent color with the theme's glow strength
+   (stronger in dark mode, softer in light mode) into the task card's
+   shadow. */
+.task-card {
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    0 0 18px color-mix(in srgb, var(--accent, #38e0ff) calc(var(--glow-opacity, 0.2) * 100%), transparent);
+}

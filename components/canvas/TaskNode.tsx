@@ -38,7 +38,10 @@ export default function TaskNode({
         borderLeft: "4px solid var(--accent)",
         borderRadius: 6,
         padding: 8,
-        boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+        // Base shadow stays inline; the accent-colored "glow" layer is a
+        // real CSS rule (see .task-card in app/globals.css) so the theme's
+        // --glow-opacity variable (computed by lib/theme.ts, previously
+        // never consumed anywhere) is actually visible.
         color: "var(--text)",
         minWidth: 150,
       }}
