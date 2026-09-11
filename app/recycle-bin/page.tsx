@@ -1,7 +1,22 @@
-import { listDeletedItems } from "@/app/actions/recycleBin";
+import { listDeletedItems, restoreThread, restoreTask, emptyRecycleBin } from "@/app/actions/recycleBin";
 
 export default async function RecycleBinPage() {
   const { threads, tasks } = await listDeletedItems();
+
+  async function handleRestoreThread(formData: FormData) {
+    "use server";
+    await restoreThread(String(formData.get("threadId")));
+  }
+
+  async function handleRestoreTask(formData: FormData) {
+    "use server";
+    await restoreTask(String(formData.get("taskId")));
+  }
+
+  async function handleEmpty() {
+    "use server";
+    await emptyRecycleBin();
+  }
 
   return (
     <div>
@@ -12,12 +27,27 @@ export default async function RecycleBinPage() {
       </p>
       <ul>
         {threads.map((t) => (
-          <li key={t.id}>{t.name} (thread)</li>
+          <li key={t.id}>
+            {t.name} (thread)
+            <form action={handleRestoreThread}>
+              <input type="hidden" name="threadId" value={t.id} />
+              <button type="submit">Restore</button>
+            </form>
+          </li>
         ))}
         {tasks.map((t) => (
-          <li key={t.id}>{t.title} (task)</li>
+          <li key={t.id}>
+            {t.title} (task)
+            <form action={handleRestoreTask}>
+              <input type="hidden" name="taskId" value={t.id} />
+              <button type="submit">Restore</button>
+            </form>
+          </li>
         ))}
       </ul>
+      <form action={handleEmpty}>
+        <button type="submit">Empty Recycle Bin</button>
+      </form>
     </div>
   );
 }

@@ -39,8 +39,10 @@ export default async function CanvasPage() {
           id: t.id,
           primaryThreadId: t.primaryThreadId,
           title: t.title,
+          description: t.description,
           workStatus: t.workStatus,
           priority: t.priority,
+          dueDate: t.dueDate,
           updateCount: t._count.updates,
         }))}
         positions={positions}

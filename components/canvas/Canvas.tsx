@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ReactFlow,
   Background,
@@ -14,7 +15,15 @@ import { getZoomTier } from "./zoomTier";
 import { computeThreadCentroid } from "./layout";
 import TaskNode from "./TaskNode";
 import ThreadBubbleNode from "./ThreadBubbleNode";
+import NewThreadButton from "./NewThreadButton";
+import NewTaskButton from "./NewTaskButton";
+import ShareThreadDialog from "./ShareThreadDialog";
+import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
 import { saveTaskPosition } from "@/app/actions/taskPositions";
+import { createThread } from "@/app/actions/threads";
+import { createTask, updateTask } from "@/app/actions/tasks";
+import { shareThread } from "@/app/actions/threadShares";
+import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
 
 const nodeTypes = { task: TaskNode, threadBubble: ThreadBubbleNode };
 
@@ -23,8 +32,10 @@ type TaskSummary = {
   id: string;
   primaryThreadId: string;
   title: string;
-  workStatus: string;
-  priority: string;
+  description: string;
+  workStatus: "TODO" | "IN_PROGRESS" | "DONE";
+  priority: "LOW" | "MEDIUM" | "HIGH";
+  dueDate: Date | null;
   updateCount: number;
 };
 type PositionMap = Record<string, { x: number; y: number }>;
@@ -39,7 +50,12 @@ function CanvasInner({
   positions: PositionMap;
 }) {
   const { getZoom } = useReactFlow();
+  const router = useRouter();
   const [tier, setTier] = useState<"BUBBLE" | "CARD">("CARD");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskUpdates, setSelectedTaskUpdates] = useState<
+    { id: string; body: string; authorId: string; createdAt: Date }[]
+  >([]);
 
   const nodes = useMemo<Node[]>(() => {
     if (tier === "BUBBLE") {
@@ -80,17 +96,86 @@ function CanvasInner({
     }
   }, []);
 
+  const handleNodeClick = useCallback(async (_: unknown, node: Node) => {
+    if (node.type !== "task") return;
+    setSelectedTaskId(node.id);
+    setSelectedTaskUpdates(await listTaskUpdates(node.id));
+  }, []);
+
+  const handleCreateThread = useCallback(
+    async (input: { name: string; categoryColor: string }) => {
+      await createThread(input);
+      router.refresh();
+    },
+    [router]
+  );
+
+  const handleCreateTask = useCallback(
+    async (threadId: string, input: { title: string }) => {
+      await createTask({ primaryThreadId: threadId, title: input.title });
+      router.refresh();
+    },
+    [router]
+  );
+
+  const handleShareThread = useCallback(
+    async (threadId: string, email: string, permission: "VIEWER" | "EDITOR") => {
+      await shareThread(threadId, email, permission);
+      router.refresh();
+    },
+    [router]
+  );
+
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+
   return (
-    <ReactFlow
-      nodes={nodes}
-      nodeTypes={nodeTypes}
-      onMoveEnd={handleMoveEnd}
-      onNodeDragStop={handleNodeDragStop}
-      fitView
-    >
-      <Background />
-      <Controls />
-    </ReactFlow>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <div style={{ position: "absolute", top: 8, left: 8, zIndex: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        <NewThreadButton onCreate={handleCreateThread} />
+        {threads.map((thread) => (
+          <div key={thread.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span>{thread.name}</span>
+            <NewTaskButton
+              threadId={thread.id}
+              onCreate={(input) => handleCreateTask(thread.id, input)}
+            />
+            <ShareThreadDialog
+              threadId={thread.id}
+              onShare={(email, permission) => handleShareThread(thread.id, email, permission)}
+            />
+          </div>
+        ))}
+      </div>
+
+      <ReactFlow
+        nodes={nodes}
+        nodeTypes={nodeTypes}
+        onMoveEnd={handleMoveEnd}
+        onNodeDragStop={handleNodeDragStop}
+        onNodeClick={handleNodeClick}
+        fitView
+      >
+        <Background />
+        <Controls />
+      </ReactFlow>
+
+      {selectedTask && (
+        <TaskDetailPanel
+          task={selectedTask}
+          updates={selectedTaskUpdates}
+          onUpdateTask={async (patch) => {
+            await updateTask(selectedTask.id, patch);
+            router.refresh();
+          }}
+          onAddComment={async (body) => {
+            await addTaskUpdate(selectedTask.id, body);
+            setSelectedTaskUpdates(await listTaskUpdates(selectedTask.id));
+            router.refresh();
+          }}
+          onClose={() => setSelectedTaskId(null)}
+        />
+      )}
+    </div>
   );
 }
 
