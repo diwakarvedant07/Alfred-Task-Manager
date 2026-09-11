@@ -8,6 +8,7 @@ import {
   closeThread,
   deleteThread,
 } from "@/app/actions/threads";
+import { createTask, deleteTask } from "@/app/actions/tasks";
 import { PermissionError } from "@/lib/permissions";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
@@ -94,5 +95,28 @@ describe("thread actions", () => {
 
     await loginAs(strangerId);
     await expect(renameThread(thread.id, "Nope")).rejects.toThrow(PermissionError);
+  });
+
+  it("cascades a thread's soft-delete onto its still-active tasks, but leaves an already-deleted task's own deletion alone", async () => {
+    await loginAs(ownerId);
+    const thread = await createThread({ name: "Thread with tasks", categoryColor: "#f2c14e" });
+    const activeTask = await createTask({ primaryThreadId: thread.id, title: "Was active" });
+    const alreadyDeletedTask = await createTask({ primaryThreadId: thread.id, title: "Already gone" });
+    await deleteTask(alreadyDeletedTask.id);
+    const alreadyDeletedBefore = await db.task.findUniqueOrThrow({ where: { id: alreadyDeletedTask.id } });
+
+    await deleteThread(thread.id);
+
+    const cascaded = await db.task.findUniqueOrThrow({ where: { id: activeTask.id } });
+    expect(cascaded.lifecycleStatus).toBe("DELETED");
+    expect(cascaded.deletedAt).not.toBeNull();
+    expect(cascaded.deletedByThreadCascade).toBe(true);
+
+    // The task that was already deleted on its own before the thread was
+    // deleted keeps its original deletion record untouched.
+    const stillIndependentlyDeleted = await db.task.findUniqueOrThrow({ where: { id: alreadyDeletedTask.id } });
+    expect(stillIndependentlyDeleted.lifecycleStatus).toBe("DELETED");
+    expect(stillIndependentlyDeleted.deletedByThreadCascade).toBe(false);
+    expect(stillIndependentlyDeleted.deletedAt?.getTime()).toBe(alreadyDeletedBefore.deletedAt?.getTime());
   });
 });

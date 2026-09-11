@@ -60,8 +60,32 @@ export async function deleteThread(threadId: string) {
   const userId = await requireUserId();
   const { role } = await requireRole(threadId, userId);
   if (!canCloseOrDeleteThread(role)) throw new PermissionError();
-  return db.thread.update({
-    where: { id: threadId },
-    data: { status: "DELETED", deletedAt: new Date() },
-  });
+
+  // Soft-deleting a thread must take its still-active tasks down with it in
+  // the same operation. Without this, a deleted thread's tasks keep
+  // lifecycleStatus ACTIVE: they vanish from the canvas (filtered out
+  // because their thread isn't ACTIVE) but never appear in the recycle bin
+  // (which only lists DELETED tasks) — permanently unreachable and
+  // unrestorable, and the thread itself can then never be purged either
+  // (see emptyRecycleBin / purgeExpiredItems, which refuse to hard-delete a
+  // thread that still has a non-deleted task under it, to avoid an FK
+  // violation).
+  //
+  // Only tasks that are still ACTIVE at this moment are cascaded, and they
+  // are flagged deletedByThreadCascade so restoreThread can later tell them
+  // apart from a task that was already independently deleted before the
+  // thread went away — restoring the thread should bring back what it took
+  // down with it, not resurrect an unrelated, earlier deletion.
+  const deletedAt = new Date();
+  const [, thread] = await db.$transaction([
+    db.task.updateMany({
+      where: { primaryThreadId: threadId, lifecycleStatus: "ACTIVE" },
+      data: { lifecycleStatus: "DELETED", deletedAt, deletedByThreadCascade: true },
+    }),
+    db.thread.update({
+      where: { id: threadId },
+      data: { status: "DELETED", deletedAt },
+    }),
+  ]);
+  return thread;
 }

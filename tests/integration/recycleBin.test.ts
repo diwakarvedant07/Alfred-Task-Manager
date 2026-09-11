@@ -87,10 +87,71 @@ describe("recycle bin", () => {
     expect(updates).toHaveLength(0);
   });
 
-  it("does not hard-delete a soft-deleted thread that still has an active task, and does not throw", async () => {
+  it("cascades: deleting a thread with an active task moves both into the recycle bin, and Empty Recycle Bin purges both instead of skipping the thread", async () => {
     const thread = await createThread({ name: "Thread with a survivor", categoryColor: "#f2c14e" });
-    await createTask({ primaryThreadId: thread.id, title: "Still active" });
+    const task = await createTask({ primaryThreadId: thread.id, title: "Still active" });
+
     await deleteThread(thread.id);
+
+    // Both the thread and the task it took down with it should be visible
+    // in the recycle bin — previously the task kept lifecycleStatus ACTIVE
+    // and was unreachable: filtered off the canvas (its thread isn't
+    // ACTIVE) but absent from the bin (not DELETED).
+    const afterDelete = await listDeletedItems();
+    expect(afterDelete.threads.map((t) => t.id)).toContain(thread.id);
+    expect(afterDelete.tasks.map((t) => t.id)).toContain(task.id);
+
+    // Previously emptyRecycleBin's defensive "skip a thread with a
+    // remaining non-deleted task" check treated this as unpurgeable forever
+    // (the task never actually became DELETED), so threadsDeleted stayed 0
+    // and "Empty Recycle Bin" silently left the thread behind on every call.
+    const result = await emptyRecycleBin();
+    expect(result.threadsDeleted).toBe(1);
+    expect(result.tasksDeleted).toBe(1);
+
+    expect(await db.thread.findUnique({ where: { id: thread.id } })).toBeNull();
+    expect(await db.task.findUnique({ where: { id: task.id } })).toBeNull();
+  });
+
+  it("restoring a deleted thread also restores the task that was cascade-deleted with it", async () => {
+    const thread = await createThread({ name: "Thread with a survivor", categoryColor: "#f2c14e" });
+    const task = await createTask({ primaryThreadId: thread.id, title: "Still active" });
+
+    await deleteThread(thread.id);
+    const restored = await restoreThread(thread.id);
+
+    expect(restored.status).toBe("ACTIVE");
+    const restoredTask = await db.task.findUniqueOrThrow({ where: { id: task.id } });
+    expect(restoredTask.lifecycleStatus).toBe("ACTIVE");
+    expect(restoredTask.deletedAt).toBeNull();
+    expect(restoredTask.deletedByThreadCascade).toBe(false);
+  });
+
+  it("restoring a thread does not resurrect a task that was already independently deleted before the thread was", async () => {
+    const thread = await createThread({ name: "Thread", categoryColor: "#f2c14e" });
+    const survivorTask = await createTask({ primaryThreadId: thread.id, title: "Cascaded" });
+    const priorTask = await createTask({ primaryThreadId: thread.id, title: "Deleted on its own" });
+    await deleteTask(priorTask.id);
+
+    await deleteThread(thread.id);
+    await restoreThread(thread.id);
+
+    const restoredSurvivor = await db.task.findUniqueOrThrow({ where: { id: survivorTask.id } });
+    expect(restoredSurvivor.lifecycleStatus).toBe("ACTIVE");
+
+    const stillDeletedPriorTask = await db.task.findUniqueOrThrow({ where: { id: priorTask.id } });
+    expect(stillDeletedPriorTask.lifecycleStatus).toBe("DELETED");
+  });
+
+  it("defense-in-depth: does not hard-delete a thread with a remaining active task even if that invariant is violated by a direct DB write, and does not throw", async () => {
+    // deleteThread always cascades, so this state (a DELETED thread with a
+    // still-ACTIVE task) shouldn't arise through the action layer. This
+    // test bypasses it with a direct DB write to confirm the emptyRecycleBin
+    // skip-logic is still in place as a safety net against that invariant
+    // ever being violated some other way.
+    const thread = await createThread({ name: "Thread", categoryColor: "#f2c14e" });
+    await db.thread.update({ where: { id: thread.id }, data: { status: "DELETED", deletedAt: new Date() } });
+    await createTask({ primaryThreadId: thread.id, title: "Still active" });
 
     const result = await emptyRecycleBin();
     expect(result.threadsDeleted).toBe(0);

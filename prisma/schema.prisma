@@ -84,6 +84,12 @@ model Task {
   dueDate         DateTime?
   lifecycleStatus TaskLifecycleStatus @default(ACTIVE)
   deletedAt       DateTime?
+  // True only when this task was soft-deleted automatically because its
+  // primary thread was deleted (deleteThread cascades to ACTIVE tasks) —
+  // false for a task deleted on its own via deleteTask. restoreThread uses
+  // this to auto-restore only the tasks it took down with it, and to leave
+  // alone a task that was already independently deleted beforehand.
+  deletedByThreadCascade Boolean      @default(false)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 

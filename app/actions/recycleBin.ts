@@ -24,7 +24,21 @@ export async function restoreThread(threadId: string) {
   const userId = await requireUserId();
   const thread = await db.thread.findUniqueOrThrow({ where: { id: threadId } });
   if (thread.ownerId !== userId) throw new PermissionError();
-  return db.thread.update({ where: { id: threadId }, data: { status: "ACTIVE", deletedAt: null } });
+
+  // deleteThread cascades a soft-delete onto tasks that were still ACTIVE at
+  // the time, flagging them deletedByThreadCascade. Restoring the thread
+  // restores those tasks with it (only those — filtered on the flag), but
+  // leaves alone any task that was already DELETED on its own before the
+  // thread was deleted; that independent deletion isn't something restoring
+  // the thread should undo.
+  const [, restored] = await db.$transaction([
+    db.task.updateMany({
+      where: { primaryThreadId: threadId, lifecycleStatus: "DELETED", deletedByThreadCascade: true },
+      data: { lifecycleStatus: "ACTIVE", deletedAt: null, deletedByThreadCascade: false },
+    }),
+    db.thread.update({ where: { id: threadId }, data: { status: "ACTIVE", deletedAt: null } }),
+  ]);
+  return restored;
 }
 
 export async function restoreTask(taskId: string) {
@@ -41,13 +55,16 @@ export async function emptyRecycleBin() {
   const taskIds = tasks.map((t) => t.id);
   const threadIds = threads.map((t) => t.id);
 
-  // A thread can only be hard-deleted once nothing still points at it. If a
-  // task is still primarily attached to one of these threads and isn't
-  // itself being purged in this batch (e.g. an ACTIVE task left behind by a
-  // soft-deleted thread, since deleteThread doesn't cascade to children),
-  // hard-deleting the thread would either orphan that task or violate the
-  // FK constraint — so skip that thread rather than throwing. It stays in
-  // the recycle bin until its remaining tasks are also cleared out.
+  // A thread can only be hard-deleted once nothing still points at it.
+  // deleteThread now cascades its soft-delete onto every ACTIVE task
+  // underneath it, so in normal operation a DELETED thread never has a
+  // remaining ACTIVE task and this filter is a no-op. It's kept as
+  // defense-in-depth rather than removed: if that invariant is ever violated
+  // (a bug, a direct DB write, data from before the cascade fix existed),
+  // hard-deleting the thread anyway would either orphan the task or violate
+  // the FK constraint, so it's skipped rather than crashing the whole
+  // "Empty Recycle Bin" action. It would stay in the recycle bin until its
+  // remaining tasks are also cleared out.
   const threadsWithRemainingTasks = threadIds.length
     ? await db.task.findMany({
         where: { primaryThreadId: { in: threadIds }, id: { notIn: taskIds } },

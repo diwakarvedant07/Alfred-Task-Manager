@@ -21,11 +21,18 @@ function cutoff(now: Date): Date {
  * throws a Postgres FK constraint violation, so dependent rows are deleted
  * first, all in one transaction. A thread is only purged once nothing still
  * points at it: if a task is still primarily attached to an expired thread
- * but isn't itself expired (e.g. an ACTIVE task left behind by a
- * soft-deleted thread), hard-deleting the thread would orphan that task or
- * violate the FK constraint, so that thread is skipped rather than crashing
- * the whole job. It stays in the recycle bin until its remaining tasks are
- * also cleared out (deleted, or the thread itself un-deleted).
+ * but isn't itself expired, hard-deleting the thread would orphan that task
+ * or violate the FK constraint, so that thread is skipped rather than
+ * crashing the whole job.
+ *
+ * Since app/actions/threads.ts's deleteThread cascades its soft-delete onto
+ * every ACTIVE task under a thread, a DELETED thread should never actually
+ * have a remaining ACTIVE task in normal operation — this check is
+ * defense-in-depth against that invariant being violated some other way (a
+ * bug, a direct DB write, pre-cascade-fix data), not something expected to
+ * trigger. When it does, the thread stays in the recycle bin until its
+ * remaining tasks are also cleared out (deleted, or the thread itself
+ * un-deleted).
  */
 export async function purgeExpiredItems(now: Date): Promise<{ threadsDeleted: number; tasksDeleted: number }> {
   const threshold = cutoff(now);
