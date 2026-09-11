@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { resetDb } from "../helpers/resetDb";
 import { createThread, deleteThread } from "@/app/actions/threads";
 import { createTask, deleteTask } from "@/app/actions/tasks";
+import { addTaskUpdate } from "@/app/actions/taskUpdates";
 import { listDeletedItems, restoreThread, restoreTask, emptyRecycleBin } from "@/app/actions/recycleBin";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
@@ -69,5 +70,33 @@ describe("recycle bin", () => {
 
     const found = await db.task.findUnique({ where: { id: task.id } });
     expect(found).toBeNull();
+  });
+
+  it("empties a deleted task that has a comment (TaskUpdate) without throwing", async () => {
+    const thread = await createThread({ name: "Thread", categoryColor: "#f2c14e" });
+    const task = await createTask({ primaryThreadId: thread.id, title: "Commented task" });
+    await addTaskUpdate(task.id, "a comment");
+    await deleteTask(task.id);
+
+    const result = await emptyRecycleBin();
+    expect(result.tasksDeleted).toBe(1);
+
+    const found = await db.task.findUnique({ where: { id: task.id } });
+    expect(found).toBeNull();
+    const updates = await db.taskUpdate.findMany({ where: { taskId: task.id } });
+    expect(updates).toHaveLength(0);
+  });
+
+  it("does not hard-delete a soft-deleted thread that still has an active task, and does not throw", async () => {
+    const thread = await createThread({ name: "Thread with a survivor", categoryColor: "#f2c14e" });
+    await createTask({ primaryThreadId: thread.id, title: "Still active" });
+    await deleteThread(thread.id);
+
+    const result = await emptyRecycleBin();
+    expect(result.threadsDeleted).toBe(0);
+
+    const stillThere = await db.thread.findUnique({ where: { id: thread.id } });
+    expect(stillThere).not.toBeNull();
+    expect(stillThere?.status).toBe("DELETED");
   });
 });

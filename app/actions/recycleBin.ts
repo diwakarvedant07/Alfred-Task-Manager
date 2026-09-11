@@ -38,8 +38,37 @@ export async function emptyRecycleBin() {
   await requireUserId();
   const { threads, tasks } = await listDeletedItems();
 
-  const tasksDeleted = await db.task.deleteMany({ where: { id: { in: tasks.map((t) => t.id) } } });
-  const threadsDeleted = await db.thread.deleteMany({ where: { id: { in: threads.map((t) => t.id) } } });
+  const taskIds = tasks.map((t) => t.id);
+  const threadIds = threads.map((t) => t.id);
 
-  return { threadsDeleted: threadsDeleted.count, tasksDeleted: tasksDeleted.count };
+  // A thread can only be hard-deleted once nothing still points at it. If a
+  // task is still primarily attached to one of these threads and isn't
+  // itself being purged in this batch (e.g. an ACTIVE task left behind by a
+  // soft-deleted thread, since deleteThread doesn't cascade to children),
+  // hard-deleting the thread would either orphan that task or violate the
+  // FK constraint — so skip that thread rather than throwing. It stays in
+  // the recycle bin until its remaining tasks are also cleared out.
+  const threadsWithRemainingTasks = threadIds.length
+    ? await db.task.findMany({
+        where: { primaryThreadId: { in: threadIds }, id: { notIn: taskIds } },
+        select: { primaryThreadId: true },
+      })
+    : [];
+  const blockedThreadIds = new Set(threadsWithRemainingTasks.map((t) => t.primaryThreadId));
+  const purgeableThreadIds = threadIds.filter((id) => !blockedThreadIds.has(id));
+
+  const [, , , , taskDeleteResult, threadDeleteResult] = await db.$transaction([
+    // Dependent rows must go before the tasks/threads they reference, or
+    // the deleteMany below fails with a foreign key constraint violation.
+    db.taskUpdate.deleteMany({ where: { taskId: { in: taskIds } } }),
+    db.taskPosition.deleteMany({ where: { taskId: { in: taskIds } } }),
+    db.taskThreadLink.deleteMany({
+      where: { OR: [{ taskId: { in: taskIds } }, { threadId: { in: purgeableThreadIds } }] },
+    }),
+    db.threadShare.deleteMany({ where: { threadId: { in: purgeableThreadIds } } }),
+    db.task.deleteMany({ where: { id: { in: taskIds } } }),
+    db.thread.deleteMany({ where: { id: { in: purgeableThreadIds } } }),
+  ]);
+
+  return { threadsDeleted: threadDeleteResult.count, tasksDeleted: taskDeleteResult.count };
 }
