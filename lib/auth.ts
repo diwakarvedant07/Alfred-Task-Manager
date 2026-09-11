@@ -6,6 +6,14 @@ import { db } from "@/lib/db";
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
+  callbacks: {
+    // Without this, `auth` used as middleware only refreshes the session
+    // cookie and lets every request through — see next-auth's handleAuth(),
+    // which defaults `authorized` to `true` when this callback is absent.
+    // middleware.ts's matcher only covers /canvas and /recycle-bin, so this
+    // gates those routes and redirects unauthenticated requests to /login.
+    authorized: ({ auth: session }) => !!session?.user,
+  },
   providers: [
     Credentials({
       credentials: {
