@@ -10,6 +10,11 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/setupTests.ts"],
     globals: true,
+    // Integration tests share one Postgres instance and each resets it via
+    // resetDb() in beforeEach. Running test files in parallel workers lets
+    // one file's reset race another file's writes, causing intermittent FK
+    // failures. Running files sequentially keeps the shared DB deterministic.
+    fileParallelism: false,
   },
   resolve: {
     alias: { "@": path.resolve(dirname, ".") },
