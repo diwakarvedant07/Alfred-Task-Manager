@@ -160,20 +160,22 @@ function CanvasInner({
       </ReactFlow>
 
       {selectedTask && (
-        <TaskDetailPanel
-          task={selectedTask}
-          updates={selectedTaskUpdates}
-          onUpdateTask={async (patch) => {
-            await updateTask(selectedTask.id, patch);
-            router.refresh();
-          }}
-          onAddComment={async (body) => {
-            await addTaskUpdate(selectedTask.id, body);
-            setSelectedTaskUpdates(await listTaskUpdates(selectedTask.id));
-            router.refresh();
-          }}
-          onClose={() => setSelectedTaskId(null)}
-        />
+        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 360, zIndex: 20, overflowY: "auto" }}>
+          <TaskDetailPanel
+            task={selectedTask}
+            updates={selectedTaskUpdates}
+            onUpdateTask={async (patch) => {
+              await updateTask(selectedTask.id, patch);
+              router.refresh();
+            }}
+            onAddComment={async (body) => {
+              await addTaskUpdate(selectedTask.id, body);
+              setSelectedTaskUpdates(await listTaskUpdates(selectedTask.id));
+              router.refresh();
+            }}
+            onClose={() => setSelectedTaskId(null)}
+          />
+        </div>
       )}
     </div>
   );
