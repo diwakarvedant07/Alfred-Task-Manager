@@ -25,14 +25,20 @@ function cutoff(now: Date): Date {
  * or violate the FK constraint, so that thread is skipped rather than
  * crashing the whole job.
  *
- * Since app/actions/threads.ts's deleteThread cascades its soft-delete onto
- * every ACTIVE task under a thread, a DELETED thread should never actually
- * have a remaining ACTIVE task in normal operation — this check is
- * defense-in-depth against that invariant being violated some other way (a
- * bug, a direct DB write, pre-cascade-fix data), not something expected to
- * trigger. When it does, the thread stays in the recycle bin until its
- * remaining tasks are also cleared out (deleted, or the thread itself
- * un-deleted).
+ * app/actions/threads.ts's deleteThread cascades its soft-delete onto every
+ * ACTIVE task under a thread, and app/actions/recycleBin.ts's restoreTask
+ * refuses to independently restore a task whose thread is still DELETED
+ * (RestoreBlockedError) — the path that used to let a restored task
+ * reopen this exact gap. So a DELETED thread should not end up with a
+ * remaining ACTIVE task through this app's own Server Actions.
+ *
+ * This check is kept as defense-in-depth rather than removed: there's no
+ * server-side guard stopping a task from being created in, or moved into,
+ * an already-DELETED thread in the first place (createTask,
+ * moveTaskToThread — a separate gap outside this fix's scope), and a direct
+ * DB write or pre-cascade-fix data could also violate the invariant. When
+ * it does, the thread stays in the recycle bin until its remaining tasks
+ * are also cleared out (deleted, or the thread itself un-deleted).
  */
 export async function purgeExpiredItems(now: Date): Promise<{ threadsDeleted: number; tasksDeleted: number }> {
   const threshold = cutoff(now);

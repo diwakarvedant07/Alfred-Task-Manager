@@ -4,6 +4,11 @@ import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { PermissionError } from "@/lib/permissions";
 
+// Thrown by restoreTask when restoring it independently would leave it
+// ACTIVE while its own primaryThread is still DELETED — the exact state
+// deleteThread's cascade (see app/actions/threads.ts) exists to prevent.
+export class RestoreBlockedError extends Error {}
+
 async function requireUserId(): Promise<string> {
   const session = await auth();
   if (!session?.user?.id) throw new PermissionError("You must be logged in.");
@@ -45,7 +50,29 @@ export async function restoreTask(taskId: string) {
   const userId = await requireUserId();
   const task = await db.task.findUniqueOrThrow({ where: { id: taskId }, include: { primaryThread: true } });
   if (task.primaryThread.ownerId !== userId) throw new PermissionError();
-  return db.task.update({ where: { id: taskId }, data: { lifecycleStatus: "ACTIVE", deletedAt: null } });
+
+  // listDeletedItems lists every DELETED task under an owned thread,
+  // including ones whose thread is itself still DELETED (cascade-deleted
+  // tasks, or tasks that were independently deleted before their thread
+  // was). Restoring one of those to ACTIVE here — without also restoring
+  // the thread — would recreate the exact bug deleteThread's cascade fixed:
+  // the task becomes invisible on the canvas (its thread isn't ACTIVE),
+  // disappears from the recycle bin (it's no longer DELETED), and
+  // permanently blocks the thread from emptyRecycleBin/purgeExpiredItems
+  // (their "thread still has a non-deleted task" skip condition now matches
+  // it forever). Refuse it instead: restoring the thread is what brings
+  // this task back, either automatically (if it was cascade-deleted) or by
+  // restoring the thread and then this task separately.
+  if (task.primaryThread.status === "DELETED") {
+    throw new RestoreBlockedError(
+      "This task's thread is still deleted. Restore the thread to bring this task back."
+    );
+  }
+
+  return db.task.update({
+    where: { id: taskId },
+    data: { lifecycleStatus: "ACTIVE", deletedAt: null, deletedByThreadCascade: false },
+  });
 }
 
 export async function emptyRecycleBin() {
@@ -56,15 +83,22 @@ export async function emptyRecycleBin() {
   const threadIds = threads.map((t) => t.id);
 
   // A thread can only be hard-deleted once nothing still points at it.
-  // deleteThread now cascades its soft-delete onto every ACTIVE task
-  // underneath it, so in normal operation a DELETED thread never has a
-  // remaining ACTIVE task and this filter is a no-op. It's kept as
-  // defense-in-depth rather than removed: if that invariant is ever violated
-  // (a bug, a direct DB write, data from before the cascade fix existed),
-  // hard-deleting the thread anyway would either orphan the task or violate
-  // the FK constraint, so it's skipped rather than crashing the whole
-  // "Empty Recycle Bin" action. It would stay in the recycle bin until its
-  // remaining tasks are also cleared out.
+  // deleteThread cascades its soft-delete onto every ACTIVE task underneath
+  // it, and restoreTask now refuses to independently restore a task whose
+  // thread is still DELETED (see RestoreBlockedError above) — the one path
+  // that used to let a restored task reopen this gap. Between the two, a
+  // DELETED thread should not end up with a remaining ACTIVE task through
+  // this app's own Server Actions.
+  //
+  // This is still kept as defense-in-depth rather than removed: there's no
+  // server-side guard (in createTask or moveTaskToThread) stopping a task
+  // from being created in, or moved into, an already-DELETED thread in the
+  // first place — an existing, separate gap outside this fix's scope — and
+  // a direct DB write or pre-cascade-fix data could also violate the
+  // invariant. If that happens, hard-deleting the thread anyway would
+  // either orphan the task or violate the FK constraint, so it's skipped
+  // rather than crashing the whole "Empty Recycle Bin" action. It would
+  // stay in the recycle bin until its remaining tasks are also cleared out.
   const threadsWithRemainingTasks = threadIds.length
     ? await db.task.findMany({
         where: { primaryThreadId: { in: threadIds }, id: { notIn: taskIds } },

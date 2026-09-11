@@ -4,7 +4,13 @@ import { resetDb } from "../helpers/resetDb";
 import { createThread, deleteThread } from "@/app/actions/threads";
 import { createTask, deleteTask } from "@/app/actions/tasks";
 import { addTaskUpdate } from "@/app/actions/taskUpdates";
-import { listDeletedItems, restoreThread, restoreTask, emptyRecycleBin } from "@/app/actions/recycleBin";
+import {
+  listDeletedItems,
+  restoreThread,
+  restoreTask,
+  emptyRecycleBin,
+  RestoreBlockedError,
+} from "@/app/actions/recycleBin";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 import { auth } from "@/lib/auth";
@@ -141,6 +147,35 @@ describe("recycle bin", () => {
 
     const stillDeletedPriorTask = await db.task.findUniqueOrThrow({ where: { id: priorTask.id } });
     expect(stillDeletedPriorTask.lifecycleStatus).toBe("DELETED");
+  });
+
+  it("refuses to independently restore a cascade-deleted task while its thread is still deleted, instead of reopening the unreachable-task bug", async () => {
+    // Deleting a thread with an active task correctly cascades the task
+    // into DELETED too, so it's now listed in the recycle bin alongside
+    // the thread with its own independent "Restore" affordance. Clicking
+    // that instead of the thread's — restoreTask(taskId), not
+    // restoreThread(threadId) — used to flip the task back to ACTIVE while
+    // leaving the thread DELETED: the task would vanish from the canvas
+    // (thread not ACTIVE), vanish from the recycle bin (task not DELETED),
+    // and permanently block the thread from emptyRecycleBin /
+    // purgeExpiredItems (their "thread still has a non-deleted task" skip
+    // condition would match it forever) — the identical failure mode the
+    // cascade fix was meant to eliminate, reached from the opposite
+    // direction.
+    const thread = await createThread({ name: "Thread with a survivor", categoryColor: "#f2c14e" });
+    const task = await createTask({ primaryThreadId: thread.id, title: "Still active" });
+    await deleteThread(thread.id);
+
+    await expect(restoreTask(task.id)).rejects.toThrow(RestoreBlockedError);
+
+    // Neither side moved: the task is still DELETED (still reachable via
+    // the bin) and the thread is still DELETED (still purgeable once its
+    // tasks are dealt with) — not the broken ACTIVE-task-under-a-DELETED-
+    // thread state.
+    const stillDeletedTask = await db.task.findUniqueOrThrow({ where: { id: task.id } });
+    expect(stillDeletedTask.lifecycleStatus).toBe("DELETED");
+    const stillDeletedThread = await db.thread.findUniqueOrThrow({ where: { id: thread.id } });
+    expect(stillDeletedThread.status).toBe("DELETED");
   });
 
   it("defense-in-depth: does not hard-delete a thread with a remaining active task even if that invariant is violated by a direct DB write, and does not throw", async () => {

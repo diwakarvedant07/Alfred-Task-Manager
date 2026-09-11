@@ -1,4 +1,10 @@
-import { listDeletedItems, restoreThread, restoreTask, emptyRecycleBin } from "@/app/actions/recycleBin";
+import {
+  listDeletedItems,
+  restoreThread,
+  restoreTask,
+  emptyRecycleBin,
+  RestoreBlockedError,
+} from "@/app/actions/recycleBin";
 
 export default async function RecycleBinPage() {
   const { threads, tasks } = await listDeletedItems();
@@ -10,7 +16,16 @@ export default async function RecycleBinPage() {
 
   async function handleRestoreTask(formData: FormData) {
     "use server";
-    await restoreTask(String(formData.get("taskId")));
+    try {
+      await restoreTask(String(formData.get("taskId")));
+    } catch (err) {
+      // A task whose thread is still DELETED (RestoreBlockedError, from
+      // app/actions/recycleBin.ts) can't be restored independently — the
+      // thread must be restored first. This simple list page has no
+      // per-row error display yet, so swallow rather than crash the whole
+      // page on an ordinary click; the row is left as-is in the bin.
+      if (!(err instanceof RestoreBlockedError)) throw err;
+    }
   }
 
   async function handleEmpty() {
