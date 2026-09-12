@@ -523,10 +523,21 @@ function CanvasInner({
               // in. Keyed by task id and never cleared on close/re-select,
               // so the canvas node and a reopened panel both keep showing
               // the edit instead of falling back to the stale `tasks` prop.
+              //
+              // Mirrors app/actions/tasks.ts updateTask's own rule: a manual
+              // priority change always clears priorityIsAiSuggested. Without
+              // this, the local override only patched `priority`, so the AI
+              // badge kept showing (reading the stale
+              // priorityIsAiSuggested: true left over from the earlier
+              // suggestTaskPriority override) until the next router.refresh()
+              // reconciled it with the server's now-correct value — visibly
+              // wrong for a manual override that's supposed to clear the
+              // badge immediately.
               const taskId = selectedTask.id;
+              const overridePatch = "priority" in patch ? { ...patch, priorityIsAiSuggested: false } : patch;
               setTaskEditOverrides((prev) => ({
                 ...prev,
-                [taskId]: { ...prev[taskId], ...patch },
+                [taskId]: { ...prev[taskId], ...overridePatch },
               }));
               try {
                 await updateTask(taskId, patch);
