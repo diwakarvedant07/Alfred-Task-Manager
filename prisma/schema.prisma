@@ -39,6 +39,11 @@ enum SharePermission {
   EDITOR
 }
 
+enum JarvisMessageRole {
+  USER
+  ASSISTANT
+}
+
 model User {
   id               String    @id @default(cuid())
   email            String    @unique
@@ -55,6 +60,7 @@ model User {
   taskPositions  TaskPosition[]
   sharesReceived ThreadShare[]  @relation("ShareRecipient")
   threadViews    ThreadView[]
+  jarvisMessages JarvisMessage[]
 }
 
 model Thread {
@@ -166,4 +172,16 @@ model ThreadSummary {
   summaryText    String
   lastIncludedAt DateTime
   updatedAt      DateTime @updatedAt
+}
+
+model JarvisMessage {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  role      JarvisMessageRole
+  content   String
+  toolCalls Json?
+  createdAt DateTime          @default(now())
+
+  @@index([userId, createdAt])
 }
