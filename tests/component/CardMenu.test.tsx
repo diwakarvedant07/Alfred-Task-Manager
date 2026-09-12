@@ -33,6 +33,7 @@ describe("CardMenu", () => {
         onChangeColor={vi.fn()}
         onClose={vi.fn()}
         onDelete={vi.fn()}
+        onViewCatchUp={vi.fn()}
       />
     );
 
@@ -49,6 +50,7 @@ describe("CardMenu", () => {
         onChangeColor={vi.fn()}
         onClose={vi.fn()}
         onDelete={vi.fn()}
+        onViewCatchUp={vi.fn()}
         canEditMeta={false}
       />
     );
@@ -68,6 +70,7 @@ describe("CardMenu", () => {
         onChangeColor={vi.fn()}
         onClose={vi.fn()}
         onDelete={vi.fn()}
+        onViewCatchUp={vi.fn()}
         canCloseOrDelete={false}
       />
     );
@@ -101,5 +104,23 @@ describe("CardMenu", () => {
 
     expect(screen.getByText("Rename")).toBeInTheDocument();
     vi.useRealTimers();
+  });
+
+  it("thread variant renders a 'View catch-up' item that calls onViewCatchUp", () => {
+    const onViewCatchUp = vi.fn();
+    render(
+      <CardMenu
+        variant="thread"
+        onRename={vi.fn()}
+        onChangeColor={vi.fn()}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+        onViewCatchUp={onViewCatchUp}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByText("View catch-up"));
+    expect(onViewCatchUp).toHaveBeenCalled();
   });
 });

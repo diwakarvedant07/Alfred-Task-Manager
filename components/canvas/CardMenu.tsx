@@ -16,6 +16,7 @@ type ThreadMenuProps = {
   onChangeColor: () => void;
   onClose: () => void;
   onDelete: () => void;
+  onViewCatchUp: () => void;
   // Mirrors lib/permissions.ts's canManageThreadMeta/canCloseOrDeleteThread,
   // which the Server Actions these buttons call already enforce — hiding
   // the items here just keeps the UI from offering something the server
@@ -67,6 +68,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
             </>
           ) : (
             <>
+              <button role="menuitem" onClick={() => runAndClose(props.onViewCatchUp)}>View catch-up</button>
               {(props.canEditMeta ?? true) && (
                 <>
                   <button role="menuitem" onClick={() => runAndClose(props.onRename)}>Rename thread</button>
