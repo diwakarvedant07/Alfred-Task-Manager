@@ -79,7 +79,8 @@ export async function updateTask(
 ) {
   const userId = await requireUserId();
   await loadTaskWithThreadRole(taskId, userId);
-  return db.task.update({ where: { id: taskId }, data: patch });
+  const data = "priority" in patch ? { ...patch, priorityIsAiSuggested: false } : patch;
+  return db.task.update({ where: { id: taskId }, data });
 }
 
 export async function moveTaskToThread(taskId: string, newThreadId: string) {
