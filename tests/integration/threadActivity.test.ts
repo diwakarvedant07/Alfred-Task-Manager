@@ -101,4 +101,41 @@ describe("thread activity queries", () => {
     expect(activity.tasks).toHaveLength(0);
     expect(activity.updates).toHaveLength(0);
   });
+
+  // Finding 4 regression tests: taskWhere() previously filtered by
+  // primaryThreadId only, so a soft-deleted task (lifecycleStatus DELETED)
+  // still showed up as activity — and deleting a task bumps its updatedAt,
+  // so the deletion itself would be described to the AI/user as ongoing or
+  // updated work (e.g. "[UPDATED] ... TODO, HIGH priority" for a task the
+  // user just deleted).
+  it("with since=null: excludes a soft-deleted task even though it exists", async () => {
+    const task = await db.task.create({
+      data: { primaryThreadId: threadId, title: "Deleted task" },
+    });
+    await db.task.update({
+      where: { id: task.id },
+      data: { lifecycleStatus: "DELETED", deletedAt: new Date() },
+    });
+
+    expect(await hasNewThreadActivity(threadId, null)).toBe(false);
+    const activity = await getNewThreadActivity(threadId, null);
+    expect(activity.tasks).toHaveLength(0);
+  });
+
+  it("with a cursor: excludes a task that was deleted after the cursor, even though the deletion bumped its updatedAt past it", async () => {
+    const task = await db.task.create({
+      data: { primaryThreadId: threadId, title: "Deleted task" },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    const cursor = new Date();
+    await new Promise((r) => setTimeout(r, 20));
+    await db.task.update({
+      where: { id: task.id },
+      data: { lifecycleStatus: "DELETED", deletedAt: new Date() },
+    });
+
+    expect(await hasNewThreadActivity(threadId, cursor)).toBe(false);
+    const activity = await getNewThreadActivity(threadId, cursor);
+    expect(activity.tasks).toHaveLength(0);
+  });
 });

@@ -22,11 +22,17 @@ export type ThreadActivity = {
 };
 
 function taskWhere(threadId: string, since: Date | null) {
+  // Deleting a task bumps its updatedAt, which would otherwise register the
+  // deletion itself as "new thread activity" and get described to the AI
+  // (and thus the user) as ongoing/updated work. Every other place in this
+  // codebase that queries tasks for display (e.g. app/canvas/page.tsx)
+  // filters to lifecycleStatus ACTIVE — match that here too.
   if (since === null) {
-    return { primaryThreadId: threadId };
+    return { primaryThreadId: threadId, lifecycleStatus: "ACTIVE" as const };
   }
   return {
     primaryThreadId: threadId,
+    lifecycleStatus: "ACTIVE" as const,
     OR: [{ createdAt: { gt: since } }, { updatedAt: { gt: since } }],
   };
 }
