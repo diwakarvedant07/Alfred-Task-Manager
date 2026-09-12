@@ -188,6 +188,23 @@ describe("sendJarvisMessage", () => {
     expect(assistantMessage.content).toBeTruthy();
   });
 
+  it("stops the loop after 4 rounds and summarizes accumulated actions when some succeeded", async () => {
+    await loginAs(ownerId);
+    const task = await createTask({ primaryThreadId: threadId, title: "Call the vendor" });
+    // Every round returns a write tool call that succeeds, never plain text —
+    // the fallback must summarize the accumulated chip log, not claim nothing happened.
+    vi.mocked(generateWithTools).mockResolvedValue(
+      toolCallResponse([{ name: "updateTaskFields", args: { taskId: task.id, status: "DONE" } }])
+    );
+
+    const { assistantMessage } = await sendJarvisMessage("keep marking it done");
+
+    expect(generateWithTools).toHaveBeenCalledTimes(4);
+    expect(assistantMessage.content).not.toMatch(/wasn't able to finish/i);
+    const occurrences = (assistantMessage.content.match(/Updated the task \(status → DONE\)/g) ?? []).length;
+    expect(occurrences).toBe(4);
+  });
+
   it("only sends the most recent 20 messages as history to Gemini", async () => {
     await loginAs(ownerId);
     for (let i = 0; i < 25; i++) {
@@ -200,6 +217,10 @@ describe("sendJarvisMessage", () => {
     const contentsArg = vi.mocked(generateWithTools).mock.calls[0][1];
     // 20 prior + the just-persisted new one = 21 total turns sent.
     expect(contentsArg).toHaveLength(21);
+    // Oldest included message first, newest (the just-sent one) last — proves
+    // correct selection AND correct ordering, not just correct count.
+    expect(contentsArg[0]?.parts?.[0]?.text).toBe("msg 5");
+    expect(contentsArg[contentsArg.length - 1]?.parts?.[0]?.text).toBe("the newest message");
   });
 
   it("persists a visible error message and does not throw when the Gemini call itself fails", async () => {

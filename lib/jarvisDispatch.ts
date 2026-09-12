@@ -18,7 +18,7 @@ const DEFAULT_THREAD_COLOR = "#38e0ff";
 
 function errorMessage(err: unknown): string {
   if (err instanceof PermissionError) return err.message;
-  if (err instanceof Error) return err.message;
+  console.error(err);
   return "Something went wrong.";
 }
 
@@ -52,11 +52,17 @@ export async function executeJarvisTool(
     case "createThreadWithTask": {
       const threadName = args.threadName as string;
       const title = args.title as string;
+      let thread;
       try {
-        const thread = await createThread({
+        thread = await createThread({
           name: threadName,
           categoryColor: (args.categoryColor as string | undefined) ?? DEFAULT_THREAD_COLOR,
         });
+      } catch (err) {
+        const summary = `Couldn't create thread "${threadName}" — ${errorMessage(err)}`;
+        return { functionResponsePayload: { error: { message: errorMessage(err) } }, chipEntry: { tool: "createThreadWithTask", success: false, summary } };
+      }
+      try {
         const task = await createTask({
           primaryThreadId: thread.id,
           title,
@@ -70,8 +76,13 @@ export async function executeJarvisTool(
           chipEntry: { tool: "createThreadWithTask", success: true, summary },
         };
       } catch (err) {
-        const summary = `Couldn't create thread "${threadName}" — ${errorMessage(err)}`;
-        return { functionResponsePayload: { error: { message: errorMessage(err) } }, chipEntry: { tool: "createThreadWithTask", success: false, summary } };
+        const summary = `Created thread "${threadName}", but couldn't add the task "${title}" to it — ${errorMessage(err)}`;
+        return {
+          functionResponsePayload: {
+            error: { message: `Thread was created (id ${thread.id}), but the task failed: ${errorMessage(err)}` },
+          },
+          chipEntry: { tool: "createThreadWithTask", success: false, summary },
+        };
       }
     }
 
