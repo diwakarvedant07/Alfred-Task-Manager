@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const PRESET_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"] as const;
 const CUSTOM_OPTION = "custom";
@@ -18,17 +18,6 @@ export default function ModelPicker({
 }) {
   const preset = isPresetModel(value);
   const [customText, setCustomText] = useState(preset ? "" : value);
-  const [isCustomMode, setIsCustomMode] = useState(!preset);
-
-  useEffect(() => {
-    if (preset) {
-      setIsCustomMode(false);
-      setCustomText("");
-    } else {
-      setIsCustomMode(true);
-      setCustomText(value);
-    }
-  }, [value, preset]);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -36,13 +25,11 @@ export default function ModelPicker({
         AI model
         <select
           aria-label="AI model"
-          value={isCustomMode ? CUSTOM_OPTION : value}
+          value={preset ? value : CUSTOM_OPTION}
           onChange={(e) => {
             if (e.target.value === CUSTOM_OPTION) {
-              setIsCustomMode(true);
               onChange(customText);
             } else {
-              setIsCustomMode(false);
               onChange(e.target.value);
             }
           }}
@@ -55,7 +42,7 @@ export default function ModelPicker({
           <option value={CUSTOM_OPTION}>Custom…</option>
         </select>
       </label>
-      {isCustomMode && (
+      {!preset && (
         <input
           aria-label="Custom model ID"
           value={customText}

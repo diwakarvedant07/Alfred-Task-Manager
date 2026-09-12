@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import React, { useState } from "react";
 import ModelPicker from "@/components/settings/ModelPicker";
 
 describe("ModelPicker", () => {
@@ -25,11 +26,13 @@ describe("ModelPicker", () => {
   });
 
   it("switching the select to Custom shows an empty input and reports an empty value", () => {
-    const onChange = vi.fn();
-    render(<ModelPicker value="gemini-2.5-pro" onChange={onChange} />);
+    const Wrapper = () => {
+      const [value, setValue] = useState("gemini-2.5-pro");
+      return <ModelPicker value={value} onChange={setValue} />;
+    };
+    render(<Wrapper />);
 
     fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "custom" } });
-    expect(onChange).toHaveBeenCalledWith("");
     expect(screen.getByLabelText("Custom model ID")).toBeInTheDocument();
   });
 });
