@@ -487,7 +487,13 @@ function CanvasInner({
       {selectedTask && (
         <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 360, zIndex: 20, overflowY: "auto" }}>
           <TaskDetailPanel
-            task={selectedTask}
+            // TaskSummary doesn't carry an AI-suggestion signal yet (no task
+            // in the plan currently wires one up), so this is a stub default
+            // until a later task threads a real value through from the data
+            // layer — see components/canvas/TaskNode.tsx's data construction
+            // above, which has the same gap but isn't caught at compile time
+            // because React Flow's `Node.data` is generically typed.
+            task={{ ...selectedTask, priorityIsAiSuggested: false }}
             updates={selectedTaskUpdates}
             canEdit={canEditSelectedTask}
             onUpdateTask={async (patch) => {

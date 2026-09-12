@@ -8,6 +8,7 @@ const task = {
   description: "Pull together the Q3 numbers.",
   workStatus: "IN_PROGRESS" as const,
   priority: "HIGH" as const,
+  priorityIsAiSuggested: false,
   dueDate: null,
 };
 
@@ -45,5 +46,31 @@ describe("TaskDetailPanel", () => {
 
     expect(onAddComment).toHaveBeenCalledWith("Pulled the numbers.");
     expect(input.value).toBe("");
+  });
+
+  it("shows an AI badge next to priority when priorityIsAiSuggested is true", () => {
+    render(
+      <TaskDetailPanel
+        task={{ ...task, priorityIsAiSuggested: true }}
+        updates={updates}
+        onUpdateTask={vi.fn()}
+        onAddComment={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.getByLabelText("AI suggested")).toBeInTheDocument();
+  });
+
+  it("does not show an AI badge when priorityIsAiSuggested is false", () => {
+    render(
+      <TaskDetailPanel
+        task={{ ...task, priorityIsAiSuggested: false }}
+        updates={updates}
+        onUpdateTask={vi.fn()}
+        onAddComment={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.queryByLabelText("AI suggested")).not.toBeInTheDocument();
   });
 });

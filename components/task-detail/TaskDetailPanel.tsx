@@ -8,6 +8,7 @@ type Task = {
   description: string;
   workStatus: "TODO" | "IN_PROGRESS" | "DONE";
   priority: "LOW" | "MEDIUM" | "HIGH";
+  priorityIsAiSuggested: boolean;
   dueDate: Date | null;
 };
 
@@ -78,6 +79,11 @@ export default function TaskDetailPanel({
           <option value="MEDIUM">Medium</option>
           <option value="HIGH">High</option>
         </select>
+        {task.priorityIsAiSuggested && (
+          <span aria-label="AI suggested" style={{ fontSize: 8, opacity: 0.7 }}>
+            🤖 AI
+          </span>
+        )}
       </label>
 
       <div>
