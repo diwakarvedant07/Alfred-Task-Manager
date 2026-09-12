@@ -29,6 +29,12 @@ export default async function CanvasPage() {
     taskPositions.map((p) => [p.taskId, { x: p.positionX, y: p.positionY }])
   );
 
+  const jarvisMessages = await db.jarvisMessage.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+  });
+
   return (
     <Canvas
       threads={threads.map((t) => ({
@@ -52,6 +58,12 @@ export default async function CanvasPage() {
       themeMode={user.themeMode}
       accentColor={user.accentColor}
       preferredAiModel={user.preferredAiModel}
+      initialJarvisMessages={jarvisMessages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        toolCalls: m.toolCalls as { tool: string; success: boolean; summary: string }[] | null,
+      }))}
     />
   );
 }

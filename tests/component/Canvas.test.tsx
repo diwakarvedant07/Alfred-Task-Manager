@@ -53,6 +53,7 @@ vi.mock("@/app/actions/threadCatchUp", () => ({
   getStoredThreadSummary: vi.fn(),
 }));
 vi.mock("@/app/actions/aiModel", () => ({ updatePreferredAiModel: vi.fn() }));
+vi.mock("@/app/actions/jarvis", () => ({ sendJarvisMessage: vi.fn() }));
 
 const task = {
   id: "t1",
@@ -70,6 +71,7 @@ const defaultThemeProps = {
   themeMode: "DARK" as const,
   accentColor: "#38e0ff",
   preferredAiModel: "gemini-3.8-flash",
+  initialJarvisMessages: [],
 };
 
 beforeEach(() => {

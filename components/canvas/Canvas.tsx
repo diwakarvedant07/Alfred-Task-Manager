@@ -23,6 +23,7 @@ import AccentColorPicker from "@/components/settings/AccentColorPicker";
 import ThemeToggle from "@/components/settings/ThemeToggle";
 import ModelPicker from "@/components/settings/ModelPicker";
 import CatchUpModal from "./CatchUpModal";
+import JarvisPanel from "@/components/jarvis/JarvisPanel";
 import { themeToCssVariables } from "@/lib/theme";
 import { saveTaskPosition } from "@/app/actions/taskPositions";
 import {
@@ -69,6 +70,7 @@ function CanvasInner({
   accentColor,
   preferredAiModel,
   initialTier,
+  initialJarvisMessages,
 }: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
@@ -77,6 +79,12 @@ function CanvasInner({
   accentColor: string;
   preferredAiModel: string;
   initialTier?: "BUBBLE" | "CARD";
+  initialJarvisMessages: {
+    id: string;
+    role: "USER" | "ASSISTANT";
+    content: string;
+    toolCalls: { tool: string; success: boolean; summary: string }[] | null;
+  }[];
 }) {
   const { getZoom } = useReactFlow();
   const router = useRouter();
@@ -556,6 +564,8 @@ function CanvasInner({
           />
         </div>
       )}
+
+      <JarvisPanel initialMessages={initialJarvisMessages} />
     </div>
   );
 }
@@ -572,6 +582,12 @@ export default function Canvas(props: {
   // ReactFlow zoom gesture, which jsdom can't do. Defaults to "CARD",
   // matching the previous hardcoded initial state.
   initialTier?: "BUBBLE" | "CARD";
+  initialJarvisMessages: {
+    id: string;
+    role: "USER" | "ASSISTANT";
+    content: string;
+    toolCalls: { tool: string; success: boolean; summary: string }[] | null;
+  }[];
 }) {
   return (
     <div style={{ width: "100%", height: "100vh", background: "var(--bg)" }}>
