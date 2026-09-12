@@ -18,6 +18,16 @@ export default function ModelPicker({
 }) {
   const preset = isPresetModel(value);
   const [customText, setCustomText] = useState(preset ? "" : value);
+  // Whether the user has explicitly switched the select to "Custom…" this
+  // render session. Kept separate from `preset` (which is derived from the
+  // controlled `value` prop) because switching to Custom must reveal the
+  // input WITHOUT calling onChange: customText starts out empty at that
+  // point, and calling onChange("") used to fire updatePreferredAiModel("")
+  // — which throws ("Model id must not be empty.") as an unhandled
+  // rejection, since the call isn't awaited/caught by the caller.
+  const [customSelected, setCustomSelected] = useState(!preset);
+
+  const showCustomInput = preset ? customSelected : true;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -25,11 +35,14 @@ export default function ModelPicker({
         AI model
         <select
           aria-label="AI model"
-          value={preset ? value : CUSTOM_OPTION}
+          value={showCustomInput ? CUSTOM_OPTION : value}
           onChange={(e) => {
             if (e.target.value === CUSTOM_OPTION) {
-              onChange(customText);
+              // Just reveal the input and wait for the user to actually type
+              // something — do not report a change upstream yet.
+              setCustomSelected(true);
             } else {
+              setCustomSelected(false);
               onChange(e.target.value);
             }
           }}
@@ -42,13 +55,18 @@ export default function ModelPicker({
           <option value={CUSTOM_OPTION}>Custom…</option>
         </select>
       </label>
-      {!preset && (
+      {showCustomInput && (
         <input
           aria-label="Custom model ID"
           value={customText}
           onChange={(e) => {
-            setCustomText(e.target.value);
-            onChange(e.target.value);
+            const next = e.target.value;
+            setCustomText(next);
+            // Only report a genuinely non-empty value upstream — an empty
+            // custom model id is not a valid model to switch to.
+            if (next.trim() !== "") {
+              onChange(next);
+            }
           }}
         />
       )}

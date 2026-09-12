@@ -25,14 +25,35 @@ describe("ModelPicker", () => {
     expect(onChange).toHaveBeenCalledWith("gemini-3.1-experimental");
   });
 
-  it("switching the select to Custom shows an empty input and reports an empty value", () => {
+  it("switching the select to Custom reveals an empty input without calling onChange", () => {
+    // Finding 5 regression test: onChange used to fire with "" the instant
+    // the select switched to Custom (customText is empty at that point),
+    // which — wired up in Canvas.tsx — called updatePreferredAiModel("")
+    // and threw as an unhandled rejection. Switching modes must only reveal
+    // the input; onChange should fire once the user actually types
+    // something non-empty.
+    const onChange = vi.fn();
     const Wrapper = () => {
       const [value, setValue] = useState("gemini-2.5-pro");
-      return <ModelPicker value={value} onChange={setValue} />;
+      return (
+        <ModelPicker
+          value={value}
+          onChange={(model) => {
+            onChange(model);
+            setValue(model);
+          }}
+        />
+      );
     };
     render(<Wrapper />);
 
     fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "custom" } });
-    expect(screen.getByLabelText("Custom model ID")).toBeInTheDocument();
+
+    const input = screen.getByLabelText("Custom model ID") as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "gemini-4.0" } });
+    expect(onChange).toHaveBeenCalledWith("gemini-4.0");
   });
 });
