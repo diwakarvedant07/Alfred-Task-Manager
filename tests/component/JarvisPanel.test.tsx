@@ -99,7 +99,7 @@ describe("JarvisPanel", () => {
     await waitFor(() => expect(screen.getByText("✗ No access to that thread")).toBeInTheDocument());
   });
 
-  it("shows a visible error state when sendJarvisMessage rejects", async () => {
+  it("shows a visible error state when sendJarvisMessage rejects, and restores the typed draft", async () => {
     vi.mocked(sendJarvisMessage).mockRejectedValue(new Error("network down"));
     render(<JarvisPanel initialMessages={[]} />);
     fireEvent.click(screen.getByRole("button", { name: "Jarvis" }));
@@ -108,6 +108,7 @@ describe("JarvisPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(screen.getByText(/couldn't reach jarvis/i)).toBeInTheDocument());
+    expect(screen.getByLabelText("Message Jarvis")).toHaveValue("hi");
   });
 
   it("does not send an empty message", () => {

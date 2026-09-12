@@ -64,16 +64,16 @@ describe("getThreadsForJarvis", () => {
     expect(result).toEqual([]);
   });
 
-  it("caps at 20 threads, most-recently-updated first", async () => {
+  it("caps at 10 threads, most-recently-updated first", async () => {
     const user = await db.user.create({ data: { email: "a@x.com", passwordHash: "x", name: "A" } });
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < 12; i++) {
       await db.thread.create({ data: { ownerId: user.id, name: `Thread ${i}`, categoryColor: "#38e0ff" } });
     }
 
     const result = await getThreadsForJarvis(user.id);
 
-    expect(result).toHaveLength(20);
-    expect(result[0].name).toBe("Thread 21");
+    expect(result).toHaveLength(10);
+    expect(result[0].name).toBe("Thread 11");
   });
 });
 

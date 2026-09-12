@@ -36,13 +36,14 @@ export default function JarvisPanel({ initialMessages }: { initialMessages: Jarv
       router.refresh();
     } catch {
       setError("Couldn't reach Jarvis — please try again.");
+      setDraft(text);
     } finally {
       setSending(false);
     }
   }
 
   return (
-    <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 20 }}>
+    <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 21 }}>
       <button aria-label="Jarvis" onClick={() => setOpen((o) => !o)}>
         ◈ JARVIS
       </button>

@@ -24,7 +24,7 @@ export async function getThreadsForJarvis(userId: string): Promise<JarvisThreadC
     where: { id: { in: threadIds } },
     include: { summary: true },
     orderBy: { updatedAt: "desc" },
-    take: 20,
+    take: 10,
   });
 
   return threads.map((t) => ({ id: t.id, name: t.name, summary: t.summary?.summaryText ?? null }));

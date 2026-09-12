@@ -53,12 +53,12 @@ export async function sendJarvisMessage(
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const result = await generateWithTools(user.preferredAiModel, contents, {
         systemInstruction,
-        tools: JARVIS_TOOLS,
+        tools: round === MAX_TOOL_ROUNDS - 1 ? undefined : JARVIS_TOOLS,
       });
       contents = [...contents, result.modelContent];
 
       if (result.functionCalls.length === 0) {
-        finalText = result.text;
+        finalText = result.text || (chipLog.length > 0 ? `Done: ${chipLog.map((c) => c.summary).join("; ")}` : FALLBACK_ERROR_TEXT);
         break;
       }
 

@@ -29,11 +29,13 @@ export default async function CanvasPage() {
     taskPositions.map((p) => [p.taskId, { x: p.positionX, y: p.positionY }])
   );
 
-  const jarvisMessages = await db.jarvisMessage.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-    take: 50,
-  });
+  const jarvisMessages = (
+    await db.jarvisMessage.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    })
+  ).reverse();
 
   return (
     <Canvas

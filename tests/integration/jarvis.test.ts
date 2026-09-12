@@ -92,6 +92,23 @@ describe("sendJarvisMessage", () => {
     expect(toolCalls[0].summary).toContain("Q3 Report");
   });
 
+  it("falls back to a chip-summary reply when the final round's text is empty", async () => {
+    await loginAs(ownerId);
+    vi.mocked(generateWithTools)
+      .mockResolvedValueOnce(
+        toolCallResponse([{ name: "createTaskInThread", args: { threadId, title: "Call the vendor" } }])
+      )
+      .mockResolvedValueOnce({ text: "", functionCalls: [], modelContent: { role: "model", parts: [] } });
+
+    const { assistantMessage } = await sendJarvisMessage("call the vendor about the invoice");
+
+    expect(assistantMessage.content).toBeTruthy();
+    expect(assistantMessage.content).not.toMatch(/something went wrong/i);
+    const toolCalls = assistantMessage.toolCalls as { tool: string; success: boolean; summary: string }[];
+    expect(toolCalls).toHaveLength(1);
+    expect(assistantMessage.content).toContain(toolCalls[0].summary);
+  });
+
   it("creates a new thread and task via createThreadWithTask", async () => {
     await loginAs(ownerId);
     vi.mocked(generateWithTools)
@@ -139,6 +156,24 @@ describe("sendJarvisMessage", () => {
     expect(updated.workStatus).toBe("DONE");
   });
 
+  it("updateTaskFields with neither status nor priority fails with a chip and makes no DB write", async () => {
+    await loginAs(ownerId);
+    const task = await createTask({ primaryThreadId: threadId, title: "Call the vendor" });
+    vi.mocked(generateWithTools)
+      .mockResolvedValueOnce(toolCallResponse([{ name: "updateTaskFields", args: { taskId: task.id } }]))
+      .mockResolvedValueOnce(textOnlyResponse("I need a status or priority to update."));
+
+    const { assistantMessage } = await sendJarvisMessage("update the vendor task");
+
+    const unchanged = await db.task.findUniqueOrThrow({ where: { id: task.id } });
+    expect(unchanged.workStatus).toBe(task.workStatus);
+    expect(unchanged.priority).toBe(task.priority);
+
+    const toolCalls = assistantMessage.toolCalls as { tool: string; success: boolean; summary: string }[];
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0]).toMatchObject({ tool: "updateTaskFields", success: false });
+  });
+
   it("resolves a task via findTasks before calling a write tool, in a second round", async () => {
     await loginAs(ownerId);
     const task = await createTask({ primaryThreadId: threadId, title: "Call the vendor about the invoice" });
@@ -178,21 +213,30 @@ describe("sendJarvisMessage", () => {
 
   it("stops the loop after 4 rounds and still returns a reply", async () => {
     await loginAs(ownerId);
-    // Every round returns another tool call, never plain text — the loop must
-    // not run forever.
-    vi.mocked(generateWithTools).mockResolvedValue(toolCallResponse([{ name: "findTasks", args: { query: "x" } }]));
+    // Rounds 1-3 keep calling tools. Tools are disabled on round 4, so a
+    // realistic model can only reply with text at that point — the loop must
+    // still terminate cleanly at exactly 4 calls, using that text reply.
+    vi.mocked(generateWithTools)
+      .mockResolvedValueOnce(toolCallResponse([{ name: "findTasks", args: { query: "x" } }]))
+      .mockResolvedValueOnce(toolCallResponse([{ name: "findTasks", args: { query: "x" } }]))
+      .mockResolvedValueOnce(toolCallResponse([{ name: "findTasks", args: { query: "x" } }]))
+      .mockResolvedValueOnce(textOnlyResponse("I couldn't pin that down — could you clarify?"));
 
     const { assistantMessage } = await sendJarvisMessage("do something");
 
     expect(generateWithTools).toHaveBeenCalledTimes(4);
-    expect(assistantMessage.content).toBeTruthy();
+    expect(assistantMessage.content).toBe("I couldn't pin that down — could you clarify?");
   });
 
   it("stops the loop after 4 rounds and summarizes accumulated actions when some succeeded", async () => {
     await loginAs(ownerId);
     const task = await createTask({ primaryThreadId: threadId, title: "Call the vendor" });
     // Every round returns a write tool call that succeeds, never plain text —
-    // the fallback must summarize the accumulated chip log, not claim nothing happened.
+    // this is a deliberately misbehaving mock (tools are disabled on round 4
+    // in the real request, so a real model couldn't do this) exercising the
+    // defensive round-cap fallback: even if a call anomalously returns a
+    // function call on the last round, the fallback must summarize the
+    // accumulated chip log rather than claim nothing happened.
     vi.mocked(generateWithTools).mockResolvedValue(
       toolCallResponse([{ name: "updateTaskFields", args: { taskId: task.id, status: "DONE" } }])
     );
