@@ -106,15 +106,21 @@ export async function emptyRecycleBin() {
   const blockedThreadIds = new Set(threadsWithRemainingTasks.map((t) => t.primaryThreadId));
   const purgeableThreadIds = threadIds.filter((id) => !blockedThreadIds.has(id));
 
-  const [, , , , taskDeleteResult, threadDeleteResult] = await db.$transaction([
+  const [, , , , , , taskDeleteResult, threadDeleteResult] = await db.$transaction([
     // Dependent rows must go before the tasks/threads they reference, or
     // the deleteMany below fails with a foreign key constraint violation.
+    // ThreadView and ThreadSummary both carry a required (RESTRICT) FK into
+    // Thread and must be cleared here too — openThreadAndMaybeGetCatchUp
+    // upserts a ThreadView on every thread-bubble click, so essentially any
+    // thread a user has opened has one.
     db.taskUpdate.deleteMany({ where: { taskId: { in: taskIds } } }),
     db.taskPosition.deleteMany({ where: { taskId: { in: taskIds } } }),
     db.taskThreadLink.deleteMany({
       where: { OR: [{ taskId: { in: taskIds } }, { threadId: { in: purgeableThreadIds } }] },
     }),
     db.threadShare.deleteMany({ where: { threadId: { in: purgeableThreadIds } } }),
+    db.threadView.deleteMany({ where: { threadId: { in: purgeableThreadIds } } }),
+    db.threadSummary.deleteMany({ where: { threadId: { in: purgeableThreadIds } } }),
     db.task.deleteMany({ where: { id: { in: taskIds } } }),
     db.thread.deleteMany({ where: { id: { in: purgeableThreadIds } } }),
   ]);

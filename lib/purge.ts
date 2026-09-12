@@ -17,9 +17,9 @@ function cutoff(now: Date): Date {
  *
  * This mirrors the fix made in app/actions/recycleBin.ts's emptyRecycleBin():
  * hard-deleting a Task or Thread without first clearing rows that carry a
- * foreign key to it (TaskUpdate, TaskPosition, TaskThreadLink, ThreadShare)
- * throws a Postgres FK constraint violation, so dependent rows are deleted
- * first, all in one transaction. A thread is only purged once nothing still
+ * foreign key to it (TaskUpdate, TaskPosition, TaskThreadLink, ThreadShare,
+ * ThreadView, ThreadSummary) throws a Postgres FK constraint violation, so
+ * dependent rows are deleted first, all in one transaction. A thread is only purged once nothing still
  * points at it: if a task is still primarily attached to an expired thread
  * but isn't itself expired, hard-deleting the thread would orphan that task
  * or violate the FK constraint, so that thread is skipped rather than
@@ -66,15 +66,21 @@ export async function purgeExpiredItems(now: Date): Promise<{ threadsDeleted: nu
   const blockedThreadIds = new Set(threadsWithRemainingTasks.map((t) => t.primaryThreadId));
   const purgeableThreadIds = threadIds.filter((id) => !blockedThreadIds.has(id));
 
-  const [, , , , taskDeleteResult, threadDeleteResult] = await db.$transaction([
+  const [, , , , , , taskDeleteResult, threadDeleteResult] = await db.$transaction([
     // Dependent rows must go before the tasks/threads they reference, or
     // the deleteMany below fails with a foreign key constraint violation.
+    // ThreadView and ThreadSummary both carry a required (RESTRICT) FK into
+    // Thread and must be cleared here too — openThreadAndMaybeGetCatchUp
+    // upserts a ThreadView on every thread-bubble click, so essentially any
+    // thread a user has opened has one.
     db.taskUpdate.deleteMany({ where: { taskId: { in: taskIds } } }),
     db.taskPosition.deleteMany({ where: { taskId: { in: taskIds } } }),
     db.taskThreadLink.deleteMany({
       where: { OR: [{ taskId: { in: taskIds } }, { threadId: { in: purgeableThreadIds } }] },
     }),
     db.threadShare.deleteMany({ where: { threadId: { in: purgeableThreadIds } } }),
+    db.threadView.deleteMany({ where: { threadId: { in: purgeableThreadIds } } }),
+    db.threadSummary.deleteMany({ where: { threadId: { in: purgeableThreadIds } } }),
     db.task.deleteMany({ where: { id: { in: taskIds } } }),
     db.thread.deleteMany({ where: { id: { in: purgeableThreadIds } } }),
   ]);

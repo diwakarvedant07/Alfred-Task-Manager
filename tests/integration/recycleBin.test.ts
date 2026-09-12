@@ -178,6 +178,30 @@ describe("recycle bin", () => {
     expect(stillDeletedThread.status).toBe("DELETED");
   });
 
+  it("empties a deleted thread that has a ThreadView and a ThreadSummary without throwing an FK violation", async () => {
+    // Finding 1 regression test: ThreadView/ThreadSummary both carry a
+    // required (RESTRICT) FK into Thread. openThreadAndMaybeGetCatchUp
+    // upserts a ThreadView on every thread-bubble click, so essentially any
+    // thread a user has opened has one — emptyRecycleBin used to hard-delete
+    // the thread without clearing these first, throwing and rolling back the
+    // whole purge (even the tasks that would otherwise be fine).
+    const thread = await createThread({ name: "Viewed thread", categoryColor: "#f2c14e" });
+    await db.threadView.create({
+      data: { threadId: thread.id, userId: ownerId, lastViewedAt: new Date() },
+    });
+    await db.threadSummary.create({
+      data: { threadId: thread.id, summaryText: "Summary.", lastIncludedAt: new Date() },
+    });
+
+    await deleteThread(thread.id);
+    const result = await emptyRecycleBin();
+
+    expect(result.threadsDeleted).toBe(1);
+    expect(await db.thread.findUnique({ where: { id: thread.id } })).toBeNull();
+    expect(await db.threadView.findMany({ where: { threadId: thread.id } })).toHaveLength(0);
+    expect(await db.threadSummary.findUnique({ where: { threadId: thread.id } })).toBeNull();
+  });
+
   it("defense-in-depth: does not hard-delete a thread with a remaining active task even if that invariant is violated by a direct DB write, and does not throw", async () => {
     // deleteThread always cascades, so this state (a DELETED thread with a
     // still-ACTIVE task) shouldn't arise through the action layer. This

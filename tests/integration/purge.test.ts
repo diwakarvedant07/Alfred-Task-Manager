@@ -89,6 +89,34 @@ describe("purgeExpiredItems", () => {
     expect(stillThere?.status).toBe("DELETED");
   });
 
+  it("purges an expired thread that has a ThreadView and a ThreadSummary without throwing an FK violation", async () => {
+    // Finding 1 regression test: same FK gap as recycleBin.test.ts's
+    // equivalent case, but exercised through the globally-scoped purge path.
+    const owner = await db.user.create({ data: { email: "f@x.com", passwordHash: "x", name: "F" } });
+    const thread = await db.thread.create({
+      data: {
+        ownerId: owner.id,
+        name: "Viewed thread",
+        categoryColor: "#fff",
+        status: "DELETED",
+        deletedAt: oldDate,
+      },
+    });
+    await db.threadView.create({
+      data: { threadId: thread.id, userId: owner.id, lastViewedAt: oldDate },
+    });
+    await db.threadSummary.create({
+      data: { threadId: thread.id, summaryText: "Summary.", lastIncludedAt: oldDate },
+    });
+
+    const result = await purgeExpiredItems(now);
+
+    expect(result.threadsDeleted).toBe(1);
+    expect(await db.thread.findUnique({ where: { id: thread.id } })).toBeNull();
+    expect(await db.threadView.findMany({ where: { threadId: thread.id } })).toHaveLength(0);
+    expect(await db.threadSummary.findUnique({ where: { threadId: thread.id } })).toBeNull();
+  });
+
   it("is a no-op when nothing is past the threshold", async () => {
     const owner = await db.user.create({ data: { email: "e@x.com", passwordHash: "x", name: "E" } });
     const thread = await db.thread.create({ data: { ownerId: owner.id, name: "Thread", categoryColor: "#fff" } });
