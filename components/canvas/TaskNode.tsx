@@ -23,6 +23,7 @@ export default function TaskNode({
     title: string;
     workStatus: string;
     priority: string;
+    priorityIsAiSuggested?: boolean;
     updateCount: number;
     onRename?: () => void;
     onMoveToThread?: () => void;
@@ -60,6 +61,11 @@ export default function TaskNode({
       <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
         <span>{WORK_STATUS_LABEL[data.workStatus]}</span>
         <span>{PRIORITY_LABEL[data.priority]}</span>
+        {data.priorityIsAiSuggested && (
+          <span aria-label="AI suggested" style={{ fontSize: 8, opacity: 0.7 }}>
+            🤖 AI
+          </span>
+        )}
       </div>
       <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>💬 {data.updateCount}</div>
       <Handle type="source" position={Position.Bottom} />

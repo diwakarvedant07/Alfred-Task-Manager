@@ -19,4 +19,28 @@ describe("TaskNode", () => {
     expect(screen.getByText("High")).toBeInTheDocument();
     expect(screen.getByText("💬 3")).toBeInTheDocument();
   });
+
+  it("shows an AI badge when the priority is AI-suggested", () => {
+    render(
+      <ReactFlowProvider>
+        <TaskNode
+          id="t1"
+          data={{ title: "Draft exec summary", workStatus: "IN_PROGRESS", priority: "HIGH", updateCount: 3, priorityIsAiSuggested: true }}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByLabelText("AI suggested")).toBeInTheDocument();
+  });
+
+  it("does not show an AI badge when the priority was manually set", () => {
+    render(
+      <ReactFlowProvider>
+        <TaskNode
+          id="t1"
+          data={{ title: "Draft exec summary", workStatus: "IN_PROGRESS", priority: "HIGH", updateCount: 3, priorityIsAiSuggested: false }}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.queryByLabelText("AI suggested")).not.toBeInTheDocument();
+  });
 });
