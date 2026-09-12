@@ -7,7 +7,7 @@ vi.mock("@google/genai", () => ({
   }),
 }));
 
-import { generateText } from "@/lib/gemini";
+import { generateText, generateWithTools } from "@/lib/gemini";
 
 describe("generateText", () => {
   beforeEach(() => {
@@ -39,6 +39,73 @@ describe("generateText", () => {
     delete process.env.GEMINI_API_KEY;
 
     await expect(generateText("gemini-2.5-flash", "Say hi")).rejects.toThrow(
+      "GEMINI_API_KEY is not set."
+    );
+  });
+});
+
+describe("generateWithTools", () => {
+  beforeEach(() => {
+    mockGenerateContent.mockReset();
+    process.env.GEMINI_API_KEY = "test-key";
+  });
+
+  it("passes contents, systemInstruction, and tools through to generateContent", async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: "Hi there",
+      functionCalls: undefined,
+      candidates: [{ content: { role: "model", parts: [{ text: "Hi there" }] } }],
+    });
+
+    const tools = [{ name: "doThing", description: "Does a thing", parametersJsonSchema: { type: "object", properties: {} } }];
+    const contents = [{ role: "user" as const, parts: [{ text: "hello" }] }];
+
+    await generateWithTools("gemini-3.8-flash", contents, { systemInstruction: "Be helpful.", tools });
+
+    expect(mockGenerateContent).toHaveBeenCalledWith({
+      model: "gemini-3.8-flash",
+      contents,
+      config: {
+        systemInstruction: "Be helpful.",
+        tools: [{ functionDeclarations: tools }],
+      },
+    });
+  });
+
+  it("returns text, functionCalls, and modelContent from the response", async () => {
+    const modelContent = {
+      role: "model",
+      parts: [{ functionCall: { name: "createTaskInThread", args: { threadId: "t1", title: "Do X" } } }],
+    };
+    mockGenerateContent.mockResolvedValue({
+      text: undefined,
+      functionCalls: [{ name: "createTaskInThread", args: { threadId: "t1", title: "Do X" } }],
+      candidates: [{ content: modelContent }],
+    });
+
+    const result = await generateWithTools("gemini-3.8-flash", [], {});
+
+    expect(result.text).toBe("");
+    expect(result.functionCalls).toEqual([{ name: "createTaskInThread", args: { threadId: "t1", title: "Do X" } }]);
+    expect(result.modelContent).toEqual(modelContent);
+  });
+
+  it("returns an empty functionCalls array when the response has none", async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: "just text",
+      functionCalls: undefined,
+      candidates: [{ content: { role: "model", parts: [{ text: "just text" }] } }],
+    });
+
+    const result = await generateWithTools("gemini-3.8-flash", [], {});
+
+    expect(result.functionCalls).toEqual([]);
+  });
+
+  it("throws a clear error when GEMINI_API_KEY is not set", async () => {
+    delete process.env.GEMINI_API_KEY;
+
+    await expect(generateWithTools("gemini-3.8-flash", [], {})).rejects.toThrow(
       "GEMINI_API_KEY is not set."
     );
   });
