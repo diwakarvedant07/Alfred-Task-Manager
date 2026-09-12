@@ -2,12 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
 
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh }),
+}));
+
 vi.mock("@/app/actions/jarvis", () => ({ sendJarvisMessage: vi.fn() }));
 import { sendJarvisMessage } from "@/app/actions/jarvis";
 
 describe("JarvisPanel", () => {
   beforeEach(() => {
     vi.mocked(sendJarvisMessage).mockReset();
+    refresh.mockReset();
   });
 
   it("is collapsed by default and can be toggled open", () => {
@@ -52,6 +58,26 @@ describe("JarvisPanel", () => {
     await waitFor(() => expect(screen.getByText("Created that task.")).toBeInTheDocument());
     expect(screen.getByText("✓ Created task X in Y")).toBeInTheDocument();
     expect(sendJarvisMessage).toHaveBeenCalledWith("call the vendor");
+  });
+
+  it("calls router.refresh after a successful send", async () => {
+    vi.mocked(sendJarvisMessage).mockResolvedValue({
+      userMessage: { id: "u1", role: "USER", content: "call the vendor", toolCalls: null } as never,
+      assistantMessage: {
+        id: "a1",
+        role: "ASSISTANT",
+        content: "Created that task.",
+        toolCalls: [{ tool: "createTaskInThread", success: true, summary: "Created task X in Y" }],
+      } as never,
+    });
+    render(<JarvisPanel initialMessages={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Jarvis" }));
+
+    fireEvent.change(screen.getByLabelText("Message Jarvis"), { target: { value: "call the vendor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(screen.getByText("Created that task.")).toBeInTheDocument());
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("shows a failed chip with an ✗ prefix", async () => {

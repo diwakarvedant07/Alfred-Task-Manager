@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { sendJarvisMessage } from "@/app/actions/jarvis";
 
 type ChipEntry = { tool: string; success: boolean; summary: string };
 type JarvisMessageView = { id: string; role: "USER" | "ASSISTANT"; content: string; toolCalls: ChipEntry[] | null };
 
 export default function JarvisPanel({ initialMessages }: { initialMessages: JarvisMessageView[] }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<JarvisMessageView[]>(initialMessages);
   const [draft, setDraft] = useState("");
@@ -31,6 +33,7 @@ export default function JarvisPanel({ initialMessages }: { initialMessages: Jarv
           toolCalls: (assistantMessage.toolCalls as ChipEntry[] | null) ?? null,
         },
       ]);
+      router.refresh();
     } catch {
       setError("Couldn't reach Jarvis — please try again.");
     } finally {
