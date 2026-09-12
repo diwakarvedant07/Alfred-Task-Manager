@@ -85,6 +85,7 @@ model Task {
   description     String              @default("")
   workStatus      TaskWorkStatus      @default(TODO)
   priority        TaskPriority        @default(MEDIUM)
+  priorityIsAiSuggested Boolean       @default(false)
   dueDate         DateTime?
   lifecycleStatus TaskLifecycleStatus @default(ACTIVE)
   deletedAt       DateTime?
