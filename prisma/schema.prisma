@@ -40,19 +40,21 @@ enum SharePermission {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  name         String
-  themeMode    ThemeMode @default(DARK)
-  accentColor  String    @default("#38e0ff")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  name             String
+  themeMode        ThemeMode @default(DARK)
+  accentColor      String    @default("#38e0ff")
+  preferredAiModel String    @default("gemini-2.5-pro")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   ownedThreads   Thread[]       @relation("ThreadOwner")
   taskUpdates    TaskUpdate[]
   taskPositions  TaskPosition[]
   sharesReceived ThreadShare[]  @relation("ShareRecipient")
+  threadViews    ThreadView[]
 }
 
 model Thread {
@@ -69,6 +71,8 @@ model Thread {
   primaryTasks   Task[]           @relation("PrimaryThread")
   secondaryLinks TaskThreadLink[]
   shares         ThreadShare[]
+  views          ThreadView[]
+  summary        ThreadSummary?
 
   @@index([ownerId, status])
 }
@@ -143,4 +147,22 @@ model ThreadShare {
   updatedAt        DateTime        @updatedAt
 
   @@unique([threadId, sharedWithUserId])
+}
+
+model ThreadView {
+  threadId     String
+  userId       String
+  thread       Thread   @relation(fields: [threadId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
+  lastViewedAt DateTime
+
+  @@id([threadId, userId])
+}
+
+model ThreadSummary {
+  threadId       String   @id
+  thread         Thread   @relation(fields: [threadId], references: [id])
+  summaryText    String
+  lastIncludedAt DateTime
+  updatedAt      DateTime @updatedAt
 }

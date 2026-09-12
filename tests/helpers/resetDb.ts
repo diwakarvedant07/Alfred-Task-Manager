@@ -5,6 +5,8 @@ export async function resetDb() {
   await db.taskPosition.deleteMany();
   await db.taskThreadLink.deleteMany();
   await db.threadShare.deleteMany();
+  await db.threadView.deleteMany();
+  await db.threadSummary.deleteMany();
   await db.task.deleteMany();
   await db.thread.deleteMany();
   await db.user.deleteMany();
