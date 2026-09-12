@@ -42,8 +42,14 @@ export async function suggestTaskPriority(taskId: string) {
   const responseText = await generateText(user.preferredAiModel, prompt);
   const priority = parsePriorityResponse(responseText);
 
-  return db.task.update({
-    where: { id: taskId },
+  // Optimistic concurrency: only apply the AI suggestion if the task hasn't
+  // been modified (e.g. a manual priority edit) since it was loaded above —
+  // otherwise a slow AI call could silently overwrite an explicit user edit
+  // and mislabel the result as AI-suggested.
+  await db.task.updateMany({
+    where: { id: taskId, updatedAt: task.updatedAt },
     data: { priority, priorityIsAiSuggested: true },
   });
+
+  return db.task.findUniqueOrThrow({ where: { id: taskId } });
 }

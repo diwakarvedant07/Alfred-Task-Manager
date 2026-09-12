@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { db } from "@/lib/db";
 import { resetDb } from "../helpers/resetDb";
 import { createThread } from "@/app/actions/threads";
-import { createTask } from "@/app/actions/tasks";
+import { createTask, updateTask } from "@/app/actions/tasks";
 import { PermissionError } from "@/lib/permissions";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
@@ -93,5 +93,32 @@ describe("suggestTaskPriority", () => {
     await loginAs(viewerId);
     await expect(suggestTaskPriority(taskId)).rejects.toThrow(PermissionError);
     expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it("does not clobber a manual priority edit made while the AI call was in flight", async () => {
+    await loginAs(ownerId);
+    // Simulate the real race: suggestTaskPriority loads the task (capturing
+    // its updatedAt) before this mock ever runs, then awaits generateText.
+    // We use that await point to perform the "concurrent manual edit" via
+    // the real updateTask action, which bumps the row's updatedAt in the
+    // DB. This exercises the actual interleaving inside suggestTaskPriority
+    // itself, not just the updateMany primitive in isolation.
+    vi.mocked(generateText).mockImplementation(async () => {
+      await updateTask(taskId, { priority: "LOW" });
+      return "HIGH";
+    });
+
+    const result = await suggestTaskPriority(taskId);
+
+    // The manual edit (bumping updatedAt) happened after suggestTaskPriority
+    // loaded the task, so its final updateMany should no-op, and it should
+    // return the task's current (manually-edited) state instead of the
+    // stale AI guess.
+    expect(result.priority).toBe("LOW");
+    expect(result.priorityIsAiSuggested).toBe(false);
+
+    const persisted = await db.task.findUniqueOrThrow({ where: { id: taskId } });
+    expect(persisted.priority).toBe("LOW");
+    expect(persisted.priorityIsAiSuggested).toBe(false);
   });
 });
