@@ -48,3 +48,8 @@ next-env.d.ts
 # SDD/brainstorming workflow scratch state (not part of the app)
 .superpowers/
 test-output.txt
+
+# Claude Code local runtime state (worktrees, locks) - launch.json is the
+# only intentionally-shared file under .claude/
+.claude/worktrees/
+.claude/*.lock
