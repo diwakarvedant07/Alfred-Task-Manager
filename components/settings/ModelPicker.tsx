@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const PRESET_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"] as const;
+const PRESET_MODELS = ["gemini-3.8-flash", "gemini-3.1-pro-preview"] as const;
 const CUSTOM_OPTION = "custom";
 
 function isPresetModel(value: string): boolean {

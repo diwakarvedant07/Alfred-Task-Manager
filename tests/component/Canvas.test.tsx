@@ -69,7 +69,7 @@ const task = {
 const defaultThemeProps = {
   themeMode: "DARK" as const,
   accentColor: "#38e0ff",
-  preferredAiModel: "gemini-2.5-pro",
+  preferredAiModel: "gemini-3.8-flash",
 };
 
 beforeEach(() => {
@@ -377,10 +377,10 @@ describe("Canvas — thread catch-up and AI model picker (Task 11 wiring)", () =
   it("changing the model picker calls updatePreferredAiModel", async () => {
     render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
 
-    fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "gemini-2.5-flash" } });
+    fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "gemini-3.1-pro-preview" } });
 
     await waitFor(() => {
-      expect(updatePreferredAiModel).toHaveBeenCalledWith("gemini-2.5-flash");
+      expect(updatePreferredAiModel).toHaveBeenCalledWith("gemini-3.1-pro-preview");
     });
   });
 

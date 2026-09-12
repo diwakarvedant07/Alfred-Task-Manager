@@ -46,7 +46,7 @@ model User {
   name             String
   themeMode        ThemeMode @default(DARK)
   accentColor      String    @default("#38e0ff")
-  preferredAiModel String    @default("gemini-2.5-pro")
+  preferredAiModel String    @default("gemini-3.8-flash")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

@@ -6,10 +6,10 @@ import ModelPicker from "@/components/settings/ModelPicker";
 describe("ModelPicker", () => {
   it("calls onChange with the new value when a preset is selected", () => {
     const onChange = vi.fn();
-    render(<ModelPicker value="gemini-2.5-pro" onChange={onChange} />);
+    render(<ModelPicker value="gemini-3.8-flash" onChange={onChange} />);
 
-    fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "gemini-2.5-flash" } });
-    expect(onChange).toHaveBeenCalledWith("gemini-2.5-flash");
+    fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "gemini-3.1-pro-preview" } });
+    expect(onChange).toHaveBeenCalledWith("gemini-3.1-pro-preview");
   });
 
   it("shows a pre-filled custom text input when value is not one of the presets", () => {
@@ -34,7 +34,7 @@ describe("ModelPicker", () => {
     // something non-empty.
     const onChange = vi.fn();
     const Wrapper = () => {
-      const [value, setValue] = useState("gemini-2.5-pro");
+      const [value, setValue] = useState("gemini-3.8-flash");
       return (
         <ModelPicker
           value={value}

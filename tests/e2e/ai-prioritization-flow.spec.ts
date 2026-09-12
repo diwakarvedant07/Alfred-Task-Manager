@@ -34,17 +34,14 @@ import { test, expect } from "@playwright/test";
 // only asserts the unscoped, page-wide locator when checking for absence
 // (toHaveCount(0) doesn't require a single match).
 //
-// A second real-world gap found while running this test: both of
-// ModelPicker's preset models ("gemini-2.5-pro" and "gemini-2.5-flash",
-// components/settings/ModelPicker.tsx) are now rejected by the real Gemini
+// A real-world gap found while first running this test: both of
+// ModelPicker's original preset models ("gemini-2.5-pro" and
+// "gemini-2.5-flash") had gone dead upstream, rejected by the real Gemini
 // API with a 404 "no longer available" error -- confirmed directly against
-// the API with this environment's GEMINI_API_KEY, independent of this test
-// or of suggestTaskPriority's own logic. That's a model-catalog staleness
-// issue upstream of this sub-project's code, not a bug in suggestTaskPriority
-// or in the test. Since the test must not assert which priority the AI
-// picks anyway, it sidesteps the dead presets using ModelPicker's existing
-// "Custom…" model-id input (already shipped, no app code changed here) to
-// point the AI call at "gemini-flash-latest", a currently-live model.
+// the API with this environment's GEMINI_API_KEY. The presets (and
+// User.preferredAiModel's schema default) were updated to currently-live
+// model IDs ("gemini-3.8-flash" / "gemini-3.1-pro-preview"), so this test
+// now exercises the default preset directly rather than routing around it.
 //
 // Retries are scoped to just this file (not playwright.config.ts, which
 // would affect every other e2e test too) because this is the one test that
@@ -79,14 +76,6 @@ test("AI priority suggestion appears after task creation and disappears on manua
     await page.getByLabel("Thread name").fill("Q3 Report");
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("Q3 Report")).toBeVisible();
-  });
-
-  await test.step("point the AI model at a currently-live Gemini model", async () => {
-    // See the header comment: both preset models are dead upstream (404 "no
-    // longer available"). Use the picker's existing Custom… input rather
-    // than either preset so the real API call in the next step can succeed.
-    await page.getByLabel("AI model").selectOption("custom");
-    await page.getByLabel("Custom model ID").fill("gemini-flash-latest");
   });
 
   await test.step("create a task with an urgent title and description", async () => {

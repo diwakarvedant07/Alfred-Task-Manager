@@ -14,7 +14,7 @@ describe("ThreadView and ThreadSummary schema", () => {
       data: { ownerId: user.id, name: "Q3 Report", categoryColor: "#f2c14e" },
     });
 
-    expect(user.preferredAiModel).toBe("gemini-2.5-pro");
+    expect(user.preferredAiModel).toBe("gemini-3.8-flash");
 
     const view = await db.threadView.create({
       data: { threadId: thread.id, userId: user.id, lastViewedAt: new Date("2026-01-01") },
