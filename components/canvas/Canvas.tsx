@@ -38,6 +38,7 @@ import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
 import { updateThemePreference } from "@/app/actions/theme";
 import { openThreadAndMaybeGetCatchUp, getStoredThreadSummary } from "@/app/actions/threadCatchUp";
 import { updatePreferredAiModel } from "@/app/actions/aiModel";
+import { suggestTaskPriority } from "@/app/actions/taskPriority";
 
 const nodeTypes = { task: TaskNode, threadBubble: ThreadBubbleNode };
 
@@ -54,6 +55,7 @@ type TaskSummary = {
   description: string;
   workStatus: "TODO" | "IN_PROGRESS" | "DONE";
   priority: "LOW" | "MEDIUM" | "HIGH";
+  priorityIsAiSuggested: boolean;
   dueDate: Date | null;
   updateCount: number;
 };
@@ -338,6 +340,7 @@ function CanvasInner({
           title: effective.title,
           workStatus: effective.workStatus,
           priority: effective.priority,
+          priorityIsAiSuggested: effective.priorityIsAiSuggested,
           updateCount: effective.updateCount,
           onRename: () => openTask(task.id),
           onMoveToThread: () => handleMoveToThread(task.id),
@@ -394,9 +397,32 @@ function CanvasInner({
   );
 
   const handleCreateTask = useCallback(
-    async (threadId: string, input: { title: string }) => {
-      await createTask({ primaryThreadId: threadId, title: input.title });
+    async (threadId: string, input: { title: string; description?: string; dueDate?: Date }) => {
+      const created = await createTask({ primaryThreadId: threadId, ...input });
       router.refresh();
+
+      // Fire-and-forget: the AI priority suggestion is a background
+      // enhancement, not part of the creation flow the user waits on. Apply
+      // its result to the same per-task override state used for in-progress
+      // edits once it resolves; swallow failures silently so a slow/failing
+      // AI call never surfaces as an error for what is otherwise a
+      // successful task creation — the task simply keeps its default
+      // MEDIUM priority.
+      void suggestTaskPriority(created.id)
+        .then((updated) => {
+          setTaskEditOverrides((prev) => ({
+            ...prev,
+            [created.id]: {
+              ...prev[created.id],
+              priority: updated.priority,
+              priorityIsAiSuggested: updated.priorityIsAiSuggested,
+            },
+          }));
+        })
+        .catch(() => {
+          // Priority suggestion is a background enhancement — failures are
+          // silent by design, the task keeps its default MEDIUM priority.
+        });
     },
     [router]
   );
@@ -487,13 +513,7 @@ function CanvasInner({
       {selectedTask && (
         <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 360, zIndex: 20, overflowY: "auto" }}>
           <TaskDetailPanel
-            // TaskSummary doesn't carry an AI-suggestion signal yet (no task
-            // in the plan currently wires one up), so this is a stub default
-            // until a later task threads a real value through from the data
-            // layer — see components/canvas/TaskNode.tsx's data construction
-            // above, which has the same gap but isn't caught at compile time
-            // because React Flow's `Node.data` is generically typed.
-            task={{ ...selectedTask, priorityIsAiSuggested: false }}
+            task={selectedTask}
             updates={selectedTaskUpdates}
             canEdit={canEditSelectedTask}
             onUpdateTask={async (patch) => {

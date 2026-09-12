@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Canvas from "@/components/canvas/Canvas";
-import { updateTask } from "@/app/actions/tasks";
+import { createTask, updateTask } from "@/app/actions/tasks";
 import { listTaskUpdates } from "@/app/actions/taskUpdates";
 import { renameThread, changeThreadCategoryColor, closeThread, deleteThread } from "@/app/actions/threads";
 import { listThreadShares, revokeThreadShare } from "@/app/actions/threadShares";
 import { updateThemePreference } from "@/app/actions/theme";
 import { openThreadAndMaybeGetCatchUp, getStoredThreadSummary } from "@/app/actions/threadCatchUp";
 import { updatePreferredAiModel } from "@/app/actions/aiModel";
+import { suggestTaskPriority } from "@/app/actions/taskPriority";
 
 // @xyflow/react measures node dimensions with ResizeObserver, which jsdom
 // does not implement. A no-op stub is the standard way to render ReactFlow
@@ -41,6 +42,7 @@ vi.mock("@/app/actions/tasks", () => ({
   createTask: vi.fn(),
   updateTask: vi.fn(),
 }));
+vi.mock("@/app/actions/taskPriority", () => ({ suggestTaskPriority: vi.fn() }));
 vi.mock("@/app/actions/taskUpdates", () => ({
   addTaskUpdate: vi.fn(),
   listTaskUpdates: vi.fn(async () => []),
@@ -59,6 +61,7 @@ const task = {
   description: "",
   workStatus: "TODO" as const,
   priority: "MEDIUM" as const,
+  priorityIsAiSuggested: false,
   dueDate: null,
   updateCount: 0,
 };
@@ -72,6 +75,8 @@ const defaultThemeProps = {
 beforeEach(() => {
   vi.mocked(listTaskUpdates).mockReset().mockResolvedValue([]);
   vi.mocked(updateTask).mockReset();
+  vi.mocked(createTask).mockReset();
+  vi.mocked(suggestTaskPriority).mockReset();
   vi.mocked(renameThread).mockReset().mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof renameThread>>);
   vi.mocked(changeThreadCategoryColor)
     .mockReset()
@@ -425,5 +430,45 @@ describe("Canvas — thread catch-up and AI model picker (Task 11 wiring)", () =
     expect(
       screen.getByText("Something went wrong loading your catch-up. Please try again.")
     ).toBeInTheDocument();
+  });
+});
+
+describe("Canvas — AI priority suggestion on task creation (Task 9 wiring)", () => {
+  it("fires suggestTaskPriority after creating a task and applies the result once it resolves", async () => {
+    vi.mocked(createTask).mockResolvedValue({
+      id: "new-task-id",
+    } as unknown as Awaited<ReturnType<typeof createTask>>);
+    vi.mocked(suggestTaskPriority).mockResolvedValue({
+      id: "new-task-id",
+      priority: "HIGH",
+      priorityIsAiSuggested: true,
+    } as unknown as Awaited<ReturnType<typeof suggestTaskPriority>>);
+
+    render(<Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New task" }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+
+    await waitFor(() => expect(createTask).toHaveBeenCalledWith({ primaryThreadId: "th1", title: "New task" }));
+    await waitFor(() => expect(suggestTaskPriority).toHaveBeenCalledWith("new-task-id"));
+  });
+
+  it("does not surface an error when suggestTaskPriority rejects", async () => {
+    vi.mocked(createTask).mockResolvedValue({
+      id: "new-task-id",
+    } as unknown as Awaited<ReturnType<typeof createTask>>);
+    vi.mocked(suggestTaskPriority).mockRejectedValue(new Error("model unavailable"));
+
+    render(<Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New task" }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+
+    await waitFor(() => expect(suggestTaskPriority).toHaveBeenCalledWith("new-task-id"));
+
+    // Swallowed silently — no unhandled rejection, no crash, dialog just closes.
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "New task in th1" })).not.toBeInTheDocument());
   });
 });

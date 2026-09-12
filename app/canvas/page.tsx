@@ -44,6 +44,7 @@ export default async function CanvasPage() {
         description: t.description,
         workStatus: t.workStatus,
         priority: t.priority,
+        priorityIsAiSuggested: t.priorityIsAiSuggested,
         dueDate: t.dueDate,
         updateCount: t._count.updates,
       }))}
