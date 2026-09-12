@@ -23,7 +23,7 @@ export default function TaskNode({
     title: string;
     workStatus: string;
     priority: string;
-    priorityIsAiSuggested?: boolean;
+    priorityIsAiSuggested: boolean;
     updateCount: number;
     onRename?: () => void;
     onMoveToThread?: () => void;

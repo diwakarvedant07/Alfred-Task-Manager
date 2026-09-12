@@ -9,7 +9,7 @@ describe("TaskNode", () => {
       <ReactFlowProvider>
         <TaskNode
           id="t1"
-          data={{ title: "Draft exec summary", workStatus: "IN_PROGRESS", priority: "HIGH", updateCount: 3 }}
+          data={{ title: "Draft exec summary", workStatus: "IN_PROGRESS", priority: "HIGH", priorityIsAiSuggested: false, updateCount: 3 }}
         />
       </ReactFlowProvider>
     );
