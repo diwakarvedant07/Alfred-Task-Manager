@@ -378,4 +378,52 @@ describe("Canvas — thread catch-up and AI model picker (Task 11 wiring)", () =
       expect(updatePreferredAiModel).toHaveBeenCalledWith("gemini-2.5-flash");
     });
   });
+
+  // Finding 6 regression tests: neither handler had a try/catch, so a
+  // rejected Server Action call left the "Catching you up…" loading state
+  // showing forever (plus an unhandled promise rejection in the console).
+  it("shows an error message instead of hanging when openThreadAndMaybeGetCatchUp rejects", async () => {
+    vi.mocked(openThreadAndMaybeGetCatchUp).mockRejectedValue(new Error("network error"));
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("rf__node-th1"));
+
+    await screen.findByRole("dialog", { name: "Catch-up" });
+    expect(screen.queryByText("Catching you up…")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Something went wrong loading your catch-up. Please try again.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows an error message instead of hanging when getStoredThreadSummary rejects", async () => {
+    vi.mocked(getStoredThreadSummary).mockRejectedValue(new Error("network error"));
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(screen.getByText("View catch-up"));
+
+    await screen.findByRole("dialog", { name: "Catch-up" });
+    expect(screen.queryByText("Catching you up…")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Something went wrong loading your catch-up. Please try again.")
+    ).toBeInTheDocument();
+  });
 });

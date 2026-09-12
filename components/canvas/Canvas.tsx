@@ -231,11 +231,22 @@ function CanvasInner({
   // decision, showing a loading state while it's in flight.
   const handleThreadBubbleClick = useCallback(async (threadId: string) => {
     setCatchUp({ summary: null, loading: true });
-    const result = await openThreadAndMaybeGetCatchUp(threadId);
-    if (result.showCatchUp) {
-      setCatchUp({ summary: result.summary, loading: false });
-    } else {
-      setCatchUp(null);
+    try {
+      const result = await openThreadAndMaybeGetCatchUp(threadId);
+      if (result.showCatchUp) {
+        setCatchUp({ summary: result.summary, loading: false });
+      } else {
+        setCatchUp(null);
+      }
+    } catch {
+      // Without this, a rejected Server Action call left the "Catching you
+      // up…" loading state showing indefinitely (only the × button to
+      // escape) plus an unhandled promise rejection in the console. Surface
+      // a clear error through the same modal instead of hanging forever.
+      setCatchUp({
+        summary: "Something went wrong loading your catch-up. Please try again.",
+        loading: false,
+      });
     }
   }, []);
 
@@ -244,8 +255,15 @@ function CanvasInner({
   // staleness check/regeneration that clicking the bubble itself does.
   const handleViewStoredCatchUp = useCallback(async (threadId: string) => {
     setCatchUp({ summary: null, loading: true });
-    const summary = await getStoredThreadSummary(threadId);
-    setCatchUp({ summary: summary ?? "Nothing to catch up on yet.", loading: false });
+    try {
+      const summary = await getStoredThreadSummary(threadId);
+      setCatchUp({ summary: summary ?? "Nothing to catch up on yet.", loading: false });
+    } catch {
+      setCatchUp({
+        summary: "Something went wrong loading your catch-up. Please try again.",
+        loading: false,
+      });
+    }
   }, []);
 
   // listThreadShares/revokeThreadShare are OWNER-only server-side
