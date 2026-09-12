@@ -47,3 +47,4 @@ next-env.d.ts
 
 # SDD/brainstorming workflow scratch state (not part of the app)
 .superpowers/
+test-output.txt
