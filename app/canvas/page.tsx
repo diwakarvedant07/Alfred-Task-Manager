@@ -50,6 +50,7 @@ export default async function CanvasPage() {
       positions={positions}
       themeMode={user.themeMode}
       accentColor={user.accentColor}
+      preferredAiModel={user.preferredAiModel}
     />
   );
 }

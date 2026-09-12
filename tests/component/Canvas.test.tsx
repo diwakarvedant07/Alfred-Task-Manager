@@ -6,6 +6,8 @@ import { listTaskUpdates } from "@/app/actions/taskUpdates";
 import { renameThread, changeThreadCategoryColor, closeThread, deleteThread } from "@/app/actions/threads";
 import { listThreadShares, revokeThreadShare } from "@/app/actions/threadShares";
 import { updateThemePreference } from "@/app/actions/theme";
+import { openThreadAndMaybeGetCatchUp, getStoredThreadSummary } from "@/app/actions/threadCatchUp";
+import { updatePreferredAiModel } from "@/app/actions/aiModel";
 
 // @xyflow/react measures node dimensions with ResizeObserver, which jsdom
 // does not implement. A no-op stub is the standard way to render ReactFlow
@@ -44,6 +46,11 @@ vi.mock("@/app/actions/taskUpdates", () => ({
   listTaskUpdates: vi.fn(async () => []),
 }));
 vi.mock("@/app/actions/theme", () => ({ updateThemePreference: vi.fn() }));
+vi.mock("@/app/actions/threadCatchUp", () => ({
+  openThreadAndMaybeGetCatchUp: vi.fn(),
+  getStoredThreadSummary: vi.fn(),
+}));
+vi.mock("@/app/actions/aiModel", () => ({ updatePreferredAiModel: vi.fn() }));
 
 const task = {
   id: "t1",
@@ -56,7 +63,11 @@ const task = {
   updateCount: 0,
 };
 
-const defaultThemeProps = { themeMode: "DARK" as const, accentColor: "#38e0ff" };
+const defaultThemeProps = {
+  themeMode: "DARK" as const,
+  accentColor: "#38e0ff",
+  preferredAiModel: "gemini-2.5-pro",
+};
 
 beforeEach(() => {
   vi.mocked(listTaskUpdates).mockReset().mockResolvedValue([]);
@@ -70,6 +81,9 @@ beforeEach(() => {
   vi.mocked(listThreadShares).mockReset().mockResolvedValue([]);
   vi.mocked(revokeThreadShare).mockReset().mockResolvedValue(undefined);
   vi.mocked(updateThemePreference).mockReset();
+  vi.mocked(openThreadAndMaybeGetCatchUp).mockReset();
+  vi.mocked(getStoredThreadSummary).mockReset();
+  vi.mocked(updatePreferredAiModel).mockReset();
 });
 
 describe("Canvas — task edit race condition", () => {
@@ -282,5 +296,86 @@ describe("Canvas — thread sharing management (Finding 2)", () => {
     fireEvent.click(revokeButton);
 
     await waitFor(() => expect(revokeThreadShare).toHaveBeenCalledWith("share1"));
+  });
+});
+
+describe("Canvas — thread catch-up and AI model picker (Task 11 wiring)", () => {
+  it("clicking a thread bubble opens the catch-up modal when the server says to show one", async () => {
+    vi.mocked(openThreadAndMaybeGetCatchUp).mockResolvedValue({
+      showCatchUp: true,
+      summary: "Welcome back.",
+    });
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    // The thread's name also appears as plain text in the settings strip
+    // (see the NewTaskButton row above the canvas), so target the actual
+    // React Flow node — identified by its stable rf__node-<id> testid —
+    // rather than ambiguous text.
+    fireEvent.click(screen.getByTestId("rf__node-th1"));
+
+    expect(await screen.findByText("Welcome back.")).toBeInTheDocument();
+    expect(openThreadAndMaybeGetCatchUp).toHaveBeenCalledWith("th1");
+  });
+
+  it("clicking a thread bubble does not open the modal when the server says there's nothing new", async () => {
+    vi.mocked(openThreadAndMaybeGetCatchUp).mockResolvedValue({
+      showCatchUp: false,
+      summary: null,
+    });
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("rf__node-th1"));
+
+    await waitFor(() => expect(openThreadAndMaybeGetCatchUp).toHaveBeenCalledWith("th1"));
+    expect(screen.queryByRole("dialog", { name: "Catch-up" })).not.toBeInTheDocument();
+  });
+
+  it("the thread bubble's 'View catch-up' menu item shows the stored summary read-only, without re-triggering the click flow", async () => {
+    vi.mocked(getStoredThreadSummary).mockResolvedValue("Last time: shipped the report.");
+
+    render(
+      <Canvas
+        threads={[ownerThread]}
+        tasks={[]}
+        positions={{}}
+        {...defaultThemeProps}
+        initialTier="BUBBLE"
+      />
+    );
+
+    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(screen.getByText("View catch-up"));
+
+    expect(await screen.findByText("Last time: shipped the report.")).toBeInTheDocument();
+    expect(getStoredThreadSummary).toHaveBeenCalledWith("th1");
+    expect(openThreadAndMaybeGetCatchUp).not.toHaveBeenCalled();
+  });
+
+  it("changing the model picker calls updatePreferredAiModel", async () => {
+    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+
+    fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "gemini-2.5-flash" } });
+
+    await waitFor(() => {
+      expect(updatePreferredAiModel).toHaveBeenCalledWith("gemini-2.5-flash");
+    });
   });
 });

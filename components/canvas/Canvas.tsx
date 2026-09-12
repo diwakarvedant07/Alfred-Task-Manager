@@ -21,6 +21,8 @@ import ShareThreadDialog from "./ShareThreadDialog";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
 import AccentColorPicker from "@/components/settings/AccentColorPicker";
 import ThemeToggle from "@/components/settings/ThemeToggle";
+import ModelPicker from "@/components/settings/ModelPicker";
+import CatchUpModal from "./CatchUpModal";
 import { themeToCssVariables } from "@/lib/theme";
 import { saveTaskPosition } from "@/app/actions/taskPositions";
 import {
@@ -34,6 +36,8 @@ import { createTask, updateTask, deleteTask, moveTaskToThread, linkSecondaryThre
 import { shareThread, listThreadShares, revokeThreadShare } from "@/app/actions/threadShares";
 import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
 import { updateThemePreference } from "@/app/actions/theme";
+import { openThreadAndMaybeGetCatchUp, getStoredThreadSummary } from "@/app/actions/threadCatchUp";
+import { updatePreferredAiModel } from "@/app/actions/aiModel";
 
 const nodeTypes = { task: TaskNode, threadBubble: ThreadBubbleNode };
 
@@ -61,6 +65,7 @@ function CanvasInner({
   positions,
   themeMode,
   accentColor,
+  preferredAiModel,
   initialTier,
 }: {
   threads: ThreadSummary[];
@@ -68,6 +73,7 @@ function CanvasInner({
   positions: PositionMap;
   themeMode: "LIGHT" | "DARK";
   accentColor: string;
+  preferredAiModel: string;
   initialTier?: "BUBBLE" | "CARD";
 }) {
   const { getZoom } = useReactFlow();
@@ -105,6 +111,16 @@ function CanvasInner({
   // the override always reflects the most recent edit made in this session,
   // which is what matters for the UI never appearing to revert.
   const [taskEditOverrides, setTaskEditOverrides] = useState<Record<string, Partial<TaskSummary>>>({});
+
+  // Catch-up modal state: null means "not showing"; a non-null value with
+  // `loading: true` renders the modal's loading state while the Server
+  // Action for either the auto-triggered (thread click) or manual ("View
+  // catch-up" menu item) path is in flight.
+  const [catchUp, setCatchUp] = useState<{ summary: string | null; loading: boolean } | null>(null);
+  // Controlled locally (mirroring the theme/accent pattern above) so the
+  // settings strip's picker reflects a change immediately rather than
+  // waiting on the updatePreferredAiModel round-trip.
+  const [aiModel, setAiModel] = useState(preferredAiModel);
 
   const withOverride = useCallback(
     (task: TaskSummary): TaskSummary => ({ ...task, ...taskEditOverrides[task.id] }),
@@ -209,6 +225,29 @@ function CanvasInner({
     [router, tasks]
   );
 
+  // Opens the catch-up modal when a thread bubble is clicked. The server
+  // decides whether there's anything worth showing (thread view staleness,
+  // new activity since the last stored summary) — this just reflects that
+  // decision, showing a loading state while it's in flight.
+  const handleThreadBubbleClick = useCallback(async (threadId: string) => {
+    setCatchUp({ summary: null, loading: true });
+    const result = await openThreadAndMaybeGetCatchUp(threadId);
+    if (result.showCatchUp) {
+      setCatchUp({ summary: result.summary, loading: false });
+    } else {
+      setCatchUp(null);
+    }
+  }, []);
+
+  // The thread bubble's "View catch-up" menu item — same modal, but always
+  // shows the last stored summary read-only rather than re-triggering the
+  // staleness check/regeneration that clicking the bubble itself does.
+  const handleViewStoredCatchUp = useCallback(async (threadId: string) => {
+    setCatchUp({ summary: null, loading: true });
+    const summary = await getStoredThreadSummary(threadId);
+    setCatchUp({ summary: summary ?? "Nothing to catch up on yet.", loading: false });
+  }, []);
+
   // listThreadShares/revokeThreadShare are OWNER-only server-side
   // (lib/permissions.ts canManageShares) — only wired up from the
   // ShareThreadDialog rendered for threads the caller owns, below.
@@ -262,6 +301,7 @@ function CanvasInner({
             onChangeColor: () => handleChangeThreadColor(thread.id),
             onClose: () => handleCloseThread(thread.id),
             onDelete: () => handleDeleteThread(thread.id),
+            onViewCatchUp: () => handleViewStoredCatchUp(thread.id),
             // lib/permissions.ts: canManageThreadMeta is OWNER+EDITOR,
             // canCloseOrDeleteThread is OWNER only.
             canEditMeta: thread.role === "OWNER" || thread.role === "EDITOR",
@@ -302,6 +342,7 @@ function CanvasInner({
     handleChangeThreadColor,
     handleCloseThread,
     handleDeleteThread,
+    handleViewStoredCatchUp,
   ]);
 
   const handleMoveEnd = useCallback(() => {
@@ -316,10 +357,14 @@ function CanvasInner({
 
   const handleNodeClick = useCallback(
     async (_: unknown, node: Node) => {
+      if (node.type === "threadBubble") {
+        void handleThreadBubbleClick(node.id);
+        return;
+      }
       if (node.type !== "task") return;
       await openTask(node.id);
     },
-    [openTask]
+    [openTask, handleThreadBubbleClick]
   );
 
   const handleCreateThread = useCallback(
@@ -392,6 +437,13 @@ function CanvasInner({
           value={localThemeMode}
           onChange={(mode) => handleThemeChange(mode, localAccentColor)}
         />
+        <ModelPicker
+          value={aiModel}
+          onChange={async (model) => {
+            setAiModel(model);
+            await updatePreferredAiModel(model);
+          }}
+        />
       </div>
 
       <ReactFlow
@@ -405,6 +457,14 @@ function CanvasInner({
         <Background />
         <Controls />
       </ReactFlow>
+
+      {catchUp && (
+        <CatchUpModal
+          summary={catchUp.summary}
+          loading={catchUp.loading}
+          onClose={() => setCatchUp(null)}
+        />
+      )}
 
       {selectedTask && (
         <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 360, zIndex: 20, overflowY: "auto" }}>
@@ -451,6 +511,7 @@ export default function Canvas(props: {
   positions: PositionMap;
   themeMode: "LIGHT" | "DARK";
   accentColor: string;
+  preferredAiModel: string;
   // Seeds the initial zoom tier — primarily so tests can render straight
   // into the BUBBLE tier (thread bubbles) without simulating a real
   // ReactFlow zoom gesture, which jsdom can't do. Defaults to "CARD",

@@ -13,6 +13,7 @@ export default function ThreadBubbleNode({
     onChangeColor?: () => void;
     onClose?: () => void;
     onDelete?: () => void;
+    onViewCatchUp?: () => void;
     // See lib/permissions.ts canManageThreadMeta/canCloseOrDeleteThread —
     // Canvas.tsx computes these from the caller's resolved thread role so
     // the menu doesn't offer actions the server would reject.
@@ -41,6 +42,7 @@ export default function ThreadBubbleNode({
         onChangeColor={data.onChangeColor ?? NOOP}
         onClose={data.onClose ?? NOOP}
         onDelete={data.onDelete ?? NOOP}
+        onViewCatchUp={data.onViewCatchUp ?? NOOP}
         canEditMeta={data.canEditMeta ?? true}
         canCloseOrDelete={data.canCloseOrDelete ?? true}
       />
