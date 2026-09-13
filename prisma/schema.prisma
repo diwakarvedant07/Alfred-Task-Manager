@@ -52,6 +52,8 @@ model User {
   themeMode        ThemeMode @default(DARK)
   accentColor      String    @default("#38e0ff")
   preferredAiModel String    @default("gemini-3.8-flash")
+  resetTokenHash      String?
+  resetTokenExpiresAt DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
