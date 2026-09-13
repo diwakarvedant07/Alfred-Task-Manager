@@ -226,6 +226,13 @@ describe("sendJarvisMessage", () => {
 
     expect(generateWithTools).toHaveBeenCalledTimes(4);
     expect(assistantMessage.content).toBe("I couldn't pin that down — could you clarify?");
+    // The behavior this whole test is about: tools must actually be omitted
+    // on the final round (so a real model can only reply with text), not
+    // just coincidentally return text in the mock.
+    const roundOneConfig = vi.mocked(generateWithTools).mock.calls[0][2];
+    const roundFourConfig = vi.mocked(generateWithTools).mock.calls[3][2];
+    expect(roundOneConfig.tools).toBeDefined();
+    expect(roundFourConfig.tools).toBeUndefined();
   });
 
   it("stops the loop after 4 rounds and summarizes accumulated actions when some succeeded", async () => {
