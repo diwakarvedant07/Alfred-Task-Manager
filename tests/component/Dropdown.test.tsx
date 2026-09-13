@@ -35,4 +35,18 @@ describe("Dropdown", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByText("Menu content")).not.toBeInTheDocument();
   });
+
+  it("does not close when clicking something inside the open panel", () => {
+    render(
+      <Dropdown trigger={({ toggle }) => <button onClick={toggle}>Open menu</button>}>
+        <button>Inside control</button>
+      </Dropdown>
+    );
+
+    fireEvent.click(screen.getByText("Open menu"));
+    expect(screen.getByText("Inside control")).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByText("Inside control"));
+    expect(screen.getByText("Inside control")).toBeInTheDocument();
+  });
 });
