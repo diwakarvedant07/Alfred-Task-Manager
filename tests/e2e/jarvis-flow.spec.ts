@@ -33,7 +33,13 @@ test("Jarvis creates a new thread and task from a chat message", async ({ page }
   });
 
   await test.step("Jarvis's reply and a success chip appear", async () => {
-    await expect(page.getByRole("dialog", { name: "Jarvis chat" }).getByText(/./)).toBeVisible({ timeout: 30000 });
+    // Scoped via data-testid rather than a bare text match: the chat dialog
+    // now also renders a persistent "Jarvis" header and a hidden "Message
+    // Jarvis" label (JarvisPanel.tsx's modernized UI kit), so a generic
+    // getByText(/./) inside the dialog is a Playwright strict-mode violation
+    // even before any message arrives. Messages are appended user-then-
+    // assistant (see JarvisPanel.tsx's handleSend), so .last() is the reply.
+    await expect(page.getByTestId("jarvis-message").last()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/✓/)).toBeVisible({ timeout: 30000 });
   });
 
