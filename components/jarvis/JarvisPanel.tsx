@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
+import Textarea from "@/components/ui/Textarea";
+import Button from "@/components/ui/Button";
 import { sendJarvisMessage } from "@/app/actions/jarvis";
 
 type ChipEntry = { tool: string; success: boolean; summary: string };
@@ -43,47 +46,65 @@ export default function JarvisPanel({ initialMessages }: { initialMessages: Jarv
   }
 
   return (
-    <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 21 }}>
-      <button aria-label="Jarvis" onClick={() => setOpen((o) => !o)}>
-        ◈ JARVIS
-      </button>
+    <div className="fixed bottom-4 right-4 z-30 flex flex-col items-end gap-3">
       {open && (
         <div
           role="dialog"
           aria-label="Jarvis chat"
-          style={{
-            width: 320,
-            maxHeight: 420,
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--panel-bg)",
-            color: "var(--text)",
-          }}
+          className="flex h-[420px] w-80 flex-col overflow-hidden rounded-2xl border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] shadow-2xl"
         >
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div className="flex items-center gap-2 border-b border-[var(--text,#eafcff)]/10 px-4 py-3">
+            <Sparkles size={16} className="text-[var(--accent,#38e0ff)]" />
+            <span className="text-sm font-semibold text-[var(--text,#eafcff)]">Jarvis</span>
+          </div>
+          <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
             {messages.map((m) => (
-              <div key={m.id} data-testid="jarvis-message">
+              <div
+                key={m.id}
+                data-testid="jarvis-message"
+                className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                  m.role === "USER"
+                    ? "self-end bg-[var(--accent,#38e0ff)]/20 text-[var(--text,#eafcff)]"
+                    : "self-start bg-[var(--text,#eafcff)]/10 text-[var(--text,#eafcff)]"
+                }`}
+              >
                 <strong>{m.role === "USER" ? "You" : "Jarvis"}:</strong> {m.content}
                 {m.toolCalls?.map((c, i) => (
-                  <div key={i}>
+                  <div key={i} className="mt-1 text-xs text-[var(--text,#eafcff)]/70">
                     {c.success ? "✓" : "✗"} {c.summary}
                   </div>
                 ))}
               </div>
             ))}
           </div>
-          {error && <div role="alert">{error}</div>}
-          <textarea
-            aria-label="Message Jarvis"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={sending}
-          />
-          <button onClick={handleSend} disabled={sending}>
-            Send
-          </button>
+          {error && (
+            <div role="alert" className="mx-3 mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-[var(--text,#eafcff)]">
+              {error}
+            </div>
+          )}
+          <div className="flex items-end gap-2 border-t border-[var(--text,#eafcff)]/10 p-3">
+            <Textarea
+              label="Message Jarvis"
+              hideLabel
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              disabled={sending}
+              rows={1}
+              className="min-h-[40px] flex-1 resize-none"
+            />
+            <Button onClick={handleSend} disabled={sending} className="shrink-0">
+              Send
+            </Button>
+          </div>
         </div>
       )}
+      <button
+        aria-label="Jarvis"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent,#38e0ff)] text-[#04121a] shadow-2xl transition-transform hover:scale-105"
+      >
+        <Sparkles size={22} />
+      </button>
     </div>
   );
 }
