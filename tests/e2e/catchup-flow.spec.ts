@@ -116,9 +116,11 @@ test("thread catch-up: no modal on first-ever view, manual View catch-up works, 
   });
 
   await test.step("changing the AI model preference persists across a reload", async () => {
+    await page.getByRole("button", { name: "User menu" }).click();
     await expect(page.getByLabel("AI model")).toHaveValue("gemini-3.8-flash");
     await page.getByLabel("AI model").selectOption("gemini-3.1-pro-preview");
     await page.reload();
+    await page.getByRole("button", { name: "User menu" }).click();
     await expect(page.getByLabel("AI model")).toHaveValue("gemini-3.1-pro-preview");
   });
 });
