@@ -21,4 +21,12 @@ describe("Sidebar", () => {
     expect(screen.getByRole("link", { name: /Recycle Bin/ })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: /Canvas/ })).not.toHaveAttribute("aria-current");
   });
+
+  it("marks the Canvas link current for a nested route under /canvas", () => {
+    mockPathname.mockReturnValue("/canvas/some-thread-id");
+    render(<Sidebar />);
+
+    expect(screen.getByRole("link", { name: /Canvas/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /Recycle Bin/ })).not.toHaveAttribute("aria-current");
+  });
 });
