@@ -35,4 +35,16 @@ describe("LoginPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid email or password.");
     expect(push).not.toHaveBeenCalled();
   });
+
+  it("shows a generic error and stops loading when signIn throws", async () => {
+    vi.mocked(signIn).mockRejectedValue(new Error("network down"));
+    render(<LoginPage />);
+
+    fireEvent.change(screen.getByPlaceholderText("Email"), { target: { value: "a@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("Password"), { target: { value: "correcthorse123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong. Please try again.");
+    expect(push).not.toHaveBeenCalled();
+  });
 });

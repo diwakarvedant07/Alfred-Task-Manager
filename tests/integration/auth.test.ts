@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { resetDb } from "../helpers/resetDb";
@@ -56,6 +56,17 @@ describe("requestPasswordReset", () => {
     const user = await db.user.findUnique({ where: { email: "nobody@example.com" } });
     expect(user).toBeNull();
   });
+
+  it("refuses to reveal the reset link when NODE_ENV is production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      await expect(requestPasswordReset("reset@example.com")).rejects.toThrow(
+        /must not reveal the reset link directly in production/
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("resetPassword", () => {
@@ -64,7 +75,7 @@ describe("resetPassword", () => {
 
   async function requestToken(email: string): Promise<string> {
     const { resetUrl } = await requestPasswordReset(email);
-    return new URL(resetUrl!, "http://x").searchParams.get("token")!;
+    return new URL(resetUrl, "http://x").searchParams.get("token")!;
   }
 
   it("updates the password and clears the token", async () => {

@@ -66,6 +66,6 @@ describe("UserMenu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
 
-    expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/login" });
+    expect(signOut).toHaveBeenCalledWith({ redirectTo: "/login" });
   });
 });

@@ -35,6 +35,19 @@ function hashResetToken(token: string): string {
 }
 
 export async function requestPasswordReset(email: string): Promise<{ resetUrl: string }> {
+  if (process.env.NODE_ENV === "production") {
+    // This function hands the raw reset token straight back to the caller
+    // instead of emailing it — a deliberate dev-mode convenience for this
+    // project (no email provider is configured; see .env.example). That
+    // convenience is also a full account-takeover primitive for any
+    // guessable email if this ever ran in production, since anyone holding
+    // the returned link can complete a reset for that account. Refuse to
+    // run in production rather than silently doing that.
+    throw new Error(
+      "requestPasswordReset must not reveal the reset link directly in production — wire up a real email provider first."
+    );
+  }
+
   const normalized = email.trim().toLowerCase();
   const user = await db.user.findUnique({ where: { email: normalized } });
 
@@ -50,13 +63,21 @@ export async function requestPasswordReset(email: string): Promise<{ resetUrl: s
     });
   }
 
-  // Always return a URL-shaped response, even for an unknown email —
-  // returning null only in that case would make this response itself a
-  // user-enumeration oracle, since a Server Action is a directly callable
-  // network endpoint, not something reached only through the UI. For an
-  // unknown email, `token` is generated but never stored, so the resulting
-  // link simply won't validate in resetPassword() — same as any other
-  // garbage token.
+  // Always return a URL-shaped response, even for an unknown email — this
+  // closes the *response-shape* oracle (a caller can no longer tell known
+  // from unknown emails by whether resetUrl is null), since a Server Action
+  // is a directly callable network endpoint, not something reached only
+  // through the UI. For an unknown email, `token` is generated but never
+  // stored, so the resulting link simply won't validate in resetPassword()
+  // — same as any other garbage token.
+  //
+  // This does NOT close user enumeration end to end: handing the raw token
+  // back to the caller (rather than emailing it) means anyone can take the
+  // returned link straight to resetPassword() and learn from its outcome
+  // whether the email had an account — a real account-takeover primitive
+  // for any guessable email. That's an inherent consequence of the
+  // dev-mode reveal above, not something this response shape alone fixes;
+  // the production guard above is what actually prevents it from shipping.
   //
   // Dev-mode convenience: no email provider is configured in this project
   // (see .env.example), so the reset link is handed back to the caller to

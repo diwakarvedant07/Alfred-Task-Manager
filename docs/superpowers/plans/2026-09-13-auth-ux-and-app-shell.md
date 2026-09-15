@@ -584,9 +584,25 @@ git commit -m "feat: add resetTokenHash/resetTokenExpiresAt to User for password
 - Modify: `app/actions/auth.ts`
 - Modify: `tests/integration/auth.test.ts`
 
+**Design note (post-Task-6-review correction):** the first version of this
+task returned `{ resetUrl: null }` for an unknown email and a real URL for a
+known one. Since a `"use server"` action is a directly callable network
+endpoint (not only reachable through the UI), that response shape was
+itself a user-enumeration oracle — a caller could submit any email and read
+`resetUrl`'s nullness to learn whether an account exists, violating this
+plan's own "no user enumeration" constraint. Fixed by always returning a
+URL-shaped response: for an unknown email, a token is generated but never
+stored, so the resulting link is syntactically identical but simply won't
+validate later in `resetPassword()` — same as any other garbage token.
+`resetUrl` is therefore never `null` in the corrected design; the type
+below reflects that. A residual response-time difference remains (the
+known-email path does one extra `db.user.update`) — accepted for this
+dev-only project rather than engineered away with constant-time padding,
+since closing the response-shape oracle is the change that matters here.
+
 **Interfaces:**
 - Consumes: `PasswordResetError` from `lib/auth-errors.ts` (Task 5).
-- Produces: `export async function requestPasswordReset(email: string): Promise<{ resetUrl: string | null }>` from `app/actions/auth.ts`.
+- Produces: `export async function requestPasswordReset(email: string): Promise<{ resetUrl: string }>` from `app/actions/auth.ts`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -601,7 +617,7 @@ describe("requestPasswordReset", () => {
   beforeEach(resetDb);
   afterAll(async () => db.$disconnect());
 
-  it("returns a reset URL containing a token for an existing account", async () => {
+  it("returns a reset URL containing a token for an existing account, storing only its hash", async () => {
     await signup({ email: "reset@example.com", password: "correcthorse", name: "Reese" });
 
     const { resetUrl } = await requestPasswordReset("Reset@Example.com");
@@ -610,13 +626,16 @@ describe("requestPasswordReset", () => {
     const user = await db.user.findUniqueOrThrow({ where: { email: "reset@example.com" } });
     expect(user.resetTokenHash).not.toBeNull();
     expect(user.resetTokenExpiresAt).not.toBeNull();
-    const token = new URL(resetUrl!, "http://x").searchParams.get("token")!;
+    const token = new URL(resetUrl, "http://x").searchParams.get("token")!;
     expect(user.resetTokenHash).not.toBe(token);
   });
 
-  it("returns a null resetUrl for an email with no account", async () => {
+  it("returns an equally URL-shaped response for an unknown email, without creating a user or storing a token", async () => {
     const { resetUrl } = await requestPasswordReset("nobody@example.com");
-    expect(resetUrl).toBeNull();
+
+    expect(resetUrl).toMatch(/^\/reset-password\?token=[0-9a-f]{64}$/);
+    const user = await db.user.findUnique({ where: { email: "nobody@example.com" } });
+    expect(user).toBeNull();
   });
 });
 ```
@@ -666,20 +685,30 @@ function hashResetToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-export async function requestPasswordReset(email: string): Promise<{ resetUrl: string | null }> {
+export async function requestPasswordReset(email: string): Promise<{ resetUrl: string }> {
   const normalized = email.trim().toLowerCase();
   const user = await db.user.findUnique({ where: { email: normalized } });
-  if (!user) return { resetUrl: null };
 
   const token = crypto.randomBytes(32).toString("hex");
-  await db.user.update({
-    where: { id: user.id },
-    data: {
-      resetTokenHash: hashResetToken(token),
-      resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
-    },
-  });
 
+  if (user) {
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        resetTokenHash: hashResetToken(token),
+        resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    });
+  }
+
+  // Always return a URL-shaped response, even for an unknown email —
+  // returning null only in that case would make this response itself a
+  // user-enumeration oracle, since a Server Action is a directly callable
+  // network endpoint, not something reached only through the UI. For an
+  // unknown email, `token` is generated but never stored, so the resulting
+  // link simply won't validate in resetPassword() — same as any other
+  // garbage token.
+  //
   // Dev-mode convenience: no email provider is configured in this project
   // (see .env.example), so the reset link is handed back to the caller to
   // display directly instead of being emailed. Only the token's hash is
@@ -1152,7 +1181,15 @@ git commit -m "feat: restyle signup page with the new UI kit"
 - Test: `tests/component/ForgotPasswordPage.test.tsx`
 
 **Interfaces:**
-- Consumes: `requestPasswordReset` (Task 6), `Button`/`Input` (Tasks 1-2).
+- Consumes: `requestPasswordReset` (Task 6, now `Promise<{ resetUrl: string }>` — never null, per Task 6's post-review correction), `Button`/`Input` (Tasks 1-2).
+
+**Design note:** because `requestPasswordReset` always returns a URL-shaped
+response now (never null — see Task 6), this page must render identically
+regardless of whether the account exists. It always shows the dev-mode link
+box; it never branches on `resetUrl` being present, since that branch is
+exactly the enumeration channel Task 6's fix closed at the server. Showing
+the same UI unconditionally is what makes the fix actually effective end to
+end.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1170,7 +1207,7 @@ beforeEach(() => {
 });
 
 describe("ForgotPasswordPage", () => {
-  it("shows the dev-mode reset link when the account exists", async () => {
+  it("shows the dev-mode reset link after submitting", async () => {
     vi.mocked(requestPasswordReset).mockResolvedValue({ resetUrl: "/reset-password?token=abc123" });
     render(<ForgotPasswordPage />);
 
@@ -1181,15 +1218,15 @@ describe("ForgotPasswordPage", () => {
     expect(requestPasswordReset).toHaveBeenCalledWith("a@example.com");
   });
 
-  it("shows the generic message without a link when the account does not exist", async () => {
-    vi.mocked(requestPasswordReset).mockResolvedValue({ resetUrl: null });
+  it("shows the identical link UI even for an email with no account (the response gives no indication either way)", async () => {
+    vi.mocked(requestPasswordReset).mockResolvedValue({ resetUrl: "/reset-password?token=deadbeef" });
     render(<ForgotPasswordPage />);
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "nobody@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
 
-    expect(await screen.findByText(/a password reset link has been generated/)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /reset-password/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "/reset-password?token=deadbeef" })).toBeInTheDocument();
+    expect(screen.getByText(/a password reset link has been generated/)).toBeInTheDocument();
   });
 });
 ```
@@ -1214,32 +1251,28 @@ import { requestPasswordReset } from "@/app/actions/auth";
 
 export default function ForgotPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [resetUrl, setResetUrl] = useState<string | null>(null);
 
   async function handleSubmit(formData: FormData) {
     setSubmitting(true);
     const result = await requestPasswordReset(String(formData.get("email")));
     setResetUrl(result.resetUrl);
-    setSubmitted(true);
     setSubmitting(false);
   }
 
-  if (submitted) {
+  if (resetUrl) {
     return (
       <div className="w-full max-w-sm rounded-2xl border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-8 shadow-2xl">
         <h1 className="mb-4 text-2xl font-semibold text-[var(--text,#eafcff)]">Check your email</h1>
         <p className="text-sm text-[var(--text,#eafcff)]/70">
           If an account exists for that email, a password reset link has been generated.
         </p>
-        {resetUrl && (
-          <div className="mt-4 rounded-lg border border-[var(--accent,#38e0ff)]/30 bg-[var(--accent,#38e0ff)]/10 p-3 text-sm text-[var(--text,#eafcff)]">
-            <p className="mb-1 font-medium">Dev mode — no email provider is configured:</p>
-            <Link href={resetUrl} className="break-all text-[var(--accent,#38e0ff)] underline">
-              {resetUrl}
-            </Link>
-          </div>
-        )}
+        <div className="mt-4 rounded-lg border border-[var(--accent,#38e0ff)]/30 bg-[var(--accent,#38e0ff)]/10 p-3 text-sm text-[var(--text,#eafcff)]">
+          <p className="mb-1 font-medium">Dev mode — no email provider is configured:</p>
+          <Link href={resetUrl} className="break-all text-[var(--accent,#38e0ff)] underline">
+            {resetUrl}
+          </Link>
+        </div>
         <p className="mt-6 text-center text-sm text-[var(--text,#eafcff)]/60">
           <Link href="/login" className="text-[var(--accent,#38e0ff)] hover:underline">
             Back to log in

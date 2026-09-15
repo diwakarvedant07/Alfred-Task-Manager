@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           accentColor={user.accentColor}
           preferredAiModel={user.preferredAiModel}
         />
-        <main className="flex-1 overflow-hidden">{children}</main>
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   );

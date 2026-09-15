@@ -529,7 +529,7 @@ export default function Canvas(props: {
   }[];
 }) {
   return (
-    <div style={{ width: "100%", height: "100vh", background: "var(--bg)" }}>
+    <div style={{ width: "100%", height: "100vh", background: "var(--bg)", overflow: "hidden" }}>
       <ReactFlowProvider>
         <CanvasInner {...props} />
       </ReactFlowProvider>

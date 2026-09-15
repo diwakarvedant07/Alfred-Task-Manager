@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, unmount } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import ForgotPasswordPage from "@/app/(auth)/forgot-password/page";
 import { requestPasswordReset } from "@/app/actions/auth";
 
@@ -53,5 +53,16 @@ describe("ForgotPasswordPage", () => {
     const htmlWithoutAccount = containerWithoutAccount.innerHTML.replace(/token=[0-9a-f]+/g, "token=TOKEN");
 
     expect(htmlWithAccount).toBe(htmlWithoutAccount);
+  });
+
+  it("shows an error and stops the loading state when requestPasswordReset rejects", async () => {
+    vi.mocked(requestPasswordReset).mockRejectedValue(new Error("Something went wrong."));
+    render(<ForgotPasswordPage />);
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong.");
+    expect(screen.getByRole("button", { name: "Send reset link" })).not.toBeDisabled();
   });
 });

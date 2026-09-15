@@ -5,17 +5,25 @@ import Link from "next/link";
 import { Mail } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import FormAlert from "@/components/ui/FormAlert";
 import { requestPasswordReset } from "@/app/actions/auth";
 
 export default function ForgotPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [resetUrl, setResetUrl] = useState<string | null>(null);
 
   async function handleSubmit(formData: FormData) {
+    setError(null);
     setSubmitting(true);
-    const result = await requestPasswordReset(String(formData.get("email")));
-    setResetUrl(result.resetUrl);
-    setSubmitting(false);
+    try {
+      const result = await requestPasswordReset(String(formData.get("email")));
+      setResetUrl(result.resetUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not generate a reset link.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (resetUrl) {
@@ -51,6 +59,7 @@ export default function ForgotPasswordPage() {
         <Button type="submit" loading={submitting}>
           Send reset link
         </Button>
+        {error && <FormAlert>{error}</FormAlert>}
       </form>
       <p className="mt-6 text-center text-sm text-[var(--text,#eafcff)]/60">
         <Link href="/login" className="text-[var(--accent,#38e0ff)] hover:underline">

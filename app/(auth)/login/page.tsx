@@ -17,17 +17,22 @@ export default function LoginPage() {
   async function handleSubmit(formData: FormData) {
     setError(null);
     setSubmitting(true);
-    const result = await signIn("credentials", {
-      email: formData.get("email"),
-      password: formData.get("password"),
-      redirect: false,
-    });
-    if (result?.error) {
-      setError("Invalid email or password.");
+    try {
+      const result = await signIn("credentials", {
+        email: formData.get("email"),
+        password: formData.get("password"),
+        redirect: false,
+      });
+      if (result?.error) {
+        setError("Invalid email or password.");
+        setSubmitting(false);
+        return;
+      }
+      router.push("/canvas");
+    } catch {
+      setError("Something went wrong. Please try again.");
       setSubmitting(false);
-      return;
     }
-    router.push("/canvas");
   }
 
   return (

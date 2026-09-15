@@ -90,10 +90,10 @@ export default function UserMenu({
         />
       </div>
       <button
-        onClick={() => signOut({ callbackUrl: "/login" })}
-        className="mt-2 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-red-300 hover:bg-red-500/10"
+        onClick={() => signOut({ redirectTo: "/login" })}
+        className="mt-2 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[var(--text,#eafcff)] hover:bg-red-500/10"
       >
-        <LogOut size={16} />
+        <LogOut size={16} className="text-red-500" />
         Log out
       </button>
     </Dropdown>
