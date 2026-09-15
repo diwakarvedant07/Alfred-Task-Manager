@@ -1,5 +1,8 @@
 "use client";
 
+import { X } from "lucide-react";
+import Button from "@/components/ui/Button";
+
 export default function CatchUpModal({
   summary,
   loading,
@@ -13,24 +16,21 @@ export default function CatchUpModal({
     <div
       role="dialog"
       aria-label="Catch-up"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "var(--bg)",
-        color: "var(--text)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 16,
-        zIndex: 100,
-      }}
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-[var(--bg,#0a0e14)] text-[var(--text,#eafcff)]"
     >
-      <button aria-label="Close" onClick={onClose} style={{ position: "absolute", top: 16, right: 16 }}>
-        ×
+      <button
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-[var(--text,#eafcff)]/70 hover:bg-[var(--text,#eafcff)]/10 hover:text-[var(--text,#eafcff)]"
+      >
+        <X size={18} />
       </button>
-      {loading ? <p>Catching you up…</p> : <p style={{ maxWidth: 480, textAlign: "center" }}>{summary}</p>}
-      {!loading && <button onClick={onClose}>Got it</button>}
+      {loading ? (
+        <p className="text-sm text-[var(--text,#eafcff)]/70">Catching you up…</p>
+      ) : (
+        <p className="max-w-lg text-center text-lg">{summary}</p>
+      )}
+      {!loading && <Button onClick={onClose}>Got it</Button>}
     </div>
   );
 }
