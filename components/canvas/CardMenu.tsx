@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { MoreVertical } from "lucide-react";
 
 type TaskMenuProps = {
   variant: "task";
@@ -17,16 +18,14 @@ type ThreadMenuProps = {
   onClose: () => void;
   onDelete: () => void;
   onViewCatchUp: () => void;
-  // Mirrors lib/permissions.ts's canManageThreadMeta/canCloseOrDeleteThread,
-  // which the Server Actions these buttons call already enforce — hiding
-  // the items here just keeps the UI from offering something the server
-  // will reject. Default true so existing callers/tests that don't pass
-  // these (and can't know a role) keep seeing every item.
   canEditMeta?: boolean;
   canCloseOrDelete?: boolean;
 };
 
 const LONG_PRESS_MS = 450;
+
+const menuItemClassName =
+  "block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--text,#eafcff)] hover:bg-[var(--text,#eafcff)]/10";
 
 export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
   const [open, setOpen] = useState(false);
@@ -52,33 +51,66 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
       onClick={(e) => e.stopPropagation()}
-      style={{ position: "relative" }}
+      className="relative"
     >
-      <button aria-label="More actions" onClick={() => setOpen((o) => !o)}>
-        ⋮
+      <button
+        aria-label="More actions"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text,#eafcff)]/70 hover:bg-[var(--text,#eafcff)]/10 hover:text-[var(--text,#eafcff)]"
+      >
+        <MoreVertical size={16} />
       </button>
       {open && (
-        <div role="menu" style={{ position: "absolute", background: "var(--panel-bg)" }}>
+        <div
+          role="menu"
+          className="absolute right-0 z-30 mt-1 w-48 rounded-lg border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-1 shadow-xl"
+        >
           {props.variant === "task" ? (
             <>
-              <button role="menuitem" onClick={() => runAndClose(props.onRename)}>Rename</button>
-              <button role="menuitem" onClick={() => runAndClose(props.onMoveToThread)}>Move to thread…</button>
-              <button role="menuitem" onClick={() => runAndClose(props.onLinkSecondaryThread)}>Link secondary thread…</button>
-              <button role="menuitem" onClick={() => runAndClose(props.onDelete)}>Delete</button>
+              <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onRename)}>
+                Rename
+              </button>
+              <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onMoveToThread)}>
+                Move to thread…
+              </button>
+              <button
+                role="menuitem"
+                className={menuItemClassName}
+                onClick={() => runAndClose(props.onLinkSecondaryThread)}
+              >
+                Link secondary thread…
+              </button>
+              <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onDelete)}>
+                Delete
+              </button>
             </>
           ) : (
             <>
-              <button role="menuitem" onClick={() => runAndClose(props.onViewCatchUp)}>View catch-up</button>
+              <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onViewCatchUp)}>
+                View catch-up
+              </button>
               {(props.canEditMeta ?? true) && (
                 <>
-                  <button role="menuitem" onClick={() => runAndClose(props.onRename)}>Rename thread</button>
-                  <button role="menuitem" onClick={() => runAndClose(props.onChangeColor)}>Change category color</button>
+                  <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onRename)}>
+                    Rename thread
+                  </button>
+                  <button
+                    role="menuitem"
+                    className={menuItemClassName}
+                    onClick={() => runAndClose(props.onChangeColor)}
+                  >
+                    Change category color
+                  </button>
                 </>
               )}
               {(props.canCloseOrDelete ?? true) && (
                 <>
-                  <button role="menuitem" onClick={() => runAndClose(props.onClose)}>Close thread</button>
-                  <button role="menuitem" onClick={() => runAndClose(props.onDelete)}>Delete thread</button>
+                  <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onClose)}>
+                    Close thread
+                  </button>
+                  <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onDelete)}>
+                    Delete thread
+                  </button>
                 </>
               )}
             </>
