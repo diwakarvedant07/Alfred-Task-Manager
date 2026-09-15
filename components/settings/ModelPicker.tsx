@@ -9,6 +9,9 @@ function isPresetModel(value: string): boolean {
   return (PRESET_MODELS as readonly string[]).includes(value);
 }
 
+const fieldClassName =
+  "rounded-lg border border-[var(--text,#eafcff)]/15 bg-transparent px-2 py-1 text-sm text-[var(--text,#eafcff)] outline-none focus:border-[var(--accent,#38e0ff)]";
+
 export default function ModelPicker({
   value,
   onChange,
@@ -30,22 +33,21 @@ export default function ModelPicker({
   const showCustomInput = preset ? customSelected : true;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <label>
+    <div className="flex flex-col gap-1.5 text-sm text-[var(--text,#eafcff)]">
+      <label className="flex items-center justify-between gap-2">
         AI model
         <select
           aria-label="AI model"
           value={showCustomInput ? CUSTOM_OPTION : value}
           onChange={(e) => {
             if (e.target.value === CUSTOM_OPTION) {
-              // Just reveal the input and wait for the user to actually type
-              // something — do not report a change upstream yet.
               setCustomSelected(true);
             } else {
               setCustomSelected(false);
               onChange(e.target.value);
             }
           }}
+          className={fieldClassName}
         >
           {PRESET_MODELS.map((model) => (
             <option key={model} value={model}>
@@ -62,12 +64,11 @@ export default function ModelPicker({
           onChange={(e) => {
             const next = e.target.value;
             setCustomText(next);
-            // Only report a genuinely non-empty value upstream — an empty
-            // custom model id is not a valid model to switch to.
             if (next.trim() !== "") {
               onChange(next);
             }
           }}
+          className={fieldClassName}
         />
       )}
     </div>
