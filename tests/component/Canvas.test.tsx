@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import Canvas from "@/components/canvas/Canvas";
 import { createTask, updateTask } from "@/app/actions/tasks";
 import { listTaskUpdates } from "@/app/actions/taskUpdates";
@@ -172,7 +172,7 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       />
     );
 
-    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(within(screen.getByTestId("card-menu-trigger-area")).getByRole("button", { hidden: true }));
     fireEvent.click(screen.getByText("Rename thread"));
 
     await waitFor(() => expect(renameThread).toHaveBeenCalledWith("th1", "Renamed thread"));
@@ -194,7 +194,7 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       />
     );
 
-    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(within(screen.getByTestId("card-menu-trigger-area")).getByRole("button", { hidden: true }));
     fireEvent.click(screen.getByText("Delete thread"));
 
     await waitFor(() => expect(deleteThread).toHaveBeenCalledWith("th1"));
@@ -216,7 +216,7 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       />
     );
 
-    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(within(screen.getByTestId("card-menu-trigger-area")).getByRole("button", { hidden: true }));
     fireEvent.click(screen.getByText("Delete thread"));
 
     await new Promise((r) => setTimeout(r, 0));
@@ -236,7 +236,7 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       />
     );
 
-    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(within(screen.getByTestId("card-menu-trigger-area")).getByRole("button", { hidden: true }));
     expect(screen.getByText("Rename thread")).toBeInTheDocument();
     expect(screen.queryByText("Close thread")).not.toBeInTheDocument();
     expect(screen.queryByText("Delete thread")).not.toBeInTheDocument();
@@ -333,7 +333,7 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
       />
     );
 
-    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(within(screen.getByTestId("card-menu-trigger-area")).getByRole("button", { hidden: true }));
     fireEvent.click(screen.getByText("View catch-up"));
 
     expect(await screen.findByText("Last time: shipped the report.")).toBeInTheDocument();
@@ -379,7 +379,7 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
       />
     );
 
-    fireEvent.click(screen.getByText("⋮"));
+    fireEvent.click(within(screen.getByTestId("card-menu-trigger-area")).getByRole("button", { hidden: true }));
     fireEvent.click(screen.getByText("View catch-up"));
 
     await screen.findByRole("dialog", { name: "Catch-up" });
