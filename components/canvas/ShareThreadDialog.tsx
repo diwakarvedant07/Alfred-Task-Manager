@@ -21,6 +21,9 @@ export default function ShareThreadDialog({
 }: {
   threadId: string;
   onShare: (email: string, permission: "VIEWER" | "EDITOR") => void;
+  // Fired when the dialog is opened, so the caller can lazily fetch the
+  // current share list (listThreadShares) rather than loading it for every
+  // thread up front. Optional — omitting it just means no share list shows.
   onOpen?: () => void;
   shares?: ShareItem[];
   onRevoke?: (shareId: string) => void;
