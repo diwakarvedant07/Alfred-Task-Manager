@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Modal from "@/components/ui/Modal";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Button from "@/components/ui/Button";
 
 type ShareItem = {
   id: string;
@@ -17,9 +21,6 @@ export default function ShareThreadDialog({
 }: {
   threadId: string;
   onShare: (email: string, permission: "VIEWER" | "EDITOR") => void;
-  // Fired when the dialog is opened, so the caller can lazily fetch the
-  // current share list (listThreadShares) rather than loading it for every
-  // thread up front. Optional — omitting it just means no share list shows.
   onOpen?: () => void;
   shares?: ShareItem[];
   onRevoke?: (shareId: string) => void;
@@ -30,55 +31,66 @@ export default function ShareThreadDialog({
 
   if (!open) {
     return (
-      <button
+      <Button
+        variant="secondary"
         onClick={() => {
           setOpen(true);
           onOpen?.();
         }}
       >
         Share
-      </button>
+      </Button>
     );
   }
 
   return (
-    <div role="dialog" aria-label={`Share thread ${threadId}`}>
-      <label>
-        Email
-        <input aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </label>
-      <label>
-        Permission
-        <select
-          aria-label="Permission"
+    <Modal ariaLabel={`Share thread ${threadId}`} onClose={() => setOpen(false)}>
+      <h2 className="mb-4 text-lg font-semibold text-[var(--text,#eafcff)]">Share thread</h2>
+      <div className="flex flex-col gap-4">
+        <Input label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Select
+          label="Permission"
           value={permission}
           onChange={(e) => setPermission(e.target.value as "VIEWER" | "EDITOR")}
         >
           <option value="VIEWER">Viewer</option>
           <option value="EDITOR">Editor</option>
-        </select>
-      </label>
-      <button
-        onClick={() => {
-          onShare(email, permission);
-          setOpen(false);
-        }}
-      >
-        Share thread
-      </button>
+        </Select>
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="secondary" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+        <Button
+          onClick={() => {
+            onShare(email, permission);
+            setOpen(false);
+          }}
+        >
+          Share thread
+        </Button>
+      </div>
 
       {shares && shares.length > 0 && (
-        <ul aria-label="Current shares">
+        <ul
+          aria-label="Current shares"
+          className="mt-6 flex flex-col gap-2 border-t border-[var(--text,#eafcff)]/10 pt-4"
+        >
           {shares.map((share) => (
-            <li key={share.id}>
+            <li
+              key={share.id}
+              className="flex items-center justify-between gap-2 text-sm text-[var(--text,#eafcff)]/80"
+            >
               <span>
                 {share.sharedWithUser.name} ({share.sharedWithUser.email}) — {share.permission}
               </span>
-              <button onClick={() => onRevoke?.(share.id)}>Revoke</button>
+              <Button variant="secondary" onClick={() => onRevoke?.(share.id)}>
+                Revoke
+              </Button>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </Modal>
   );
 }
