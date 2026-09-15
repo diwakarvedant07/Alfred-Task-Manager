@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, unmount } from "@testing-library/react";
 import ForgotPasswordPage from "@/app/(auth)/forgot-password/page";
 import { requestPasswordReset } from "@/app/actions/auth";
 
@@ -30,5 +30,28 @@ describe("ForgotPasswordPage", () => {
 
     expect(await screen.findByRole("link", { name: "/reset-password?token=deadbeef" })).toBeInTheDocument();
     expect(screen.getByText(/a password reset link has been generated/)).toBeInTheDocument();
+  });
+
+  it("renders identical UI regardless of whether the email has an account (no observable difference)", async () => {
+    vi.mocked(requestPasswordReset).mockImplementation(async (email: string) =>
+      email === "exists@example.com"
+        ? { resetUrl: "/reset-password?token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+        : { resetUrl: "/reset-password?token=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+    );
+
+    const { container: containerWithAccount, unmount: unmountFirst } = render(<ForgotPasswordPage />);
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "exists@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
+    await screen.findByText(/a password reset link has been generated/);
+    const htmlWithAccount = containerWithAccount.innerHTML.replace(/token=[0-9a-f]+/g, "token=TOKEN");
+    unmountFirst();
+
+    const { container: containerWithoutAccount } = render(<ForgotPasswordPage />);
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "unknown@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
+    await screen.findByText(/a password reset link has been generated/);
+    const htmlWithoutAccount = containerWithoutAccount.innerHTML.replace(/token=[0-9a-f]+/g, "token=TOKEN");
+
+    expect(htmlWithAccount).toBe(htmlWithoutAccount);
   });
 });
