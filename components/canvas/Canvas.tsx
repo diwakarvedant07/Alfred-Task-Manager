@@ -19,12 +19,8 @@ import NewThreadButton from "./NewThreadButton";
 import NewTaskButton from "./NewTaskButton";
 import ShareThreadDialog from "./ShareThreadDialog";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
-import AccentColorPicker from "@/components/settings/AccentColorPicker";
-import ThemeToggle from "@/components/settings/ThemeToggle";
-import ModelPicker from "@/components/settings/ModelPicker";
 import CatchUpModal from "./CatchUpModal";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
-import { themeToCssVariables } from "@/lib/theme";
 import { saveTaskPosition } from "@/app/actions/taskPositions";
 import {
   createThread,
@@ -36,9 +32,7 @@ import {
 import { createTask, updateTask, deleteTask, moveTaskToThread, linkSecondaryThread } from "@/app/actions/tasks";
 import { shareThread, listThreadShares, revokeThreadShare } from "@/app/actions/threadShares";
 import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
-import { updateThemePreference } from "@/app/actions/theme";
 import { openThreadAndMaybeGetCatchUp, getStoredThreadSummary } from "@/app/actions/threadCatchUp";
-import { updatePreferredAiModel } from "@/app/actions/aiModel";
 import { suggestTaskPriority } from "@/app/actions/taskPriority";
 
 const nodeTypes = { task: TaskNode, threadBubble: ThreadBubbleNode };
@@ -66,18 +60,12 @@ function CanvasInner({
   threads,
   tasks,
   positions,
-  themeMode,
-  accentColor,
-  preferredAiModel,
   initialTier,
   initialJarvisMessages,
 }: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
   positions: PositionMap;
-  themeMode: "LIGHT" | "DARK";
-  accentColor: string;
-  preferredAiModel: string;
   initialTier?: "BUBBLE" | "CARD";
   initialJarvisMessages: {
     id: string;
@@ -89,12 +77,6 @@ function CanvasInner({
   const { getZoom } = useReactFlow();
   const router = useRouter();
   const [tier, setTier] = useState<"BUBBLE" | "CARD">(initialTier ?? "CARD");
-  // Controlled values for the settings strip's picker/toggle. Kept local so
-  // the controls reflect a change the instant it's made, rather than
-  // waiting on the updateThemePreference round-trip and a router.refresh()
-  // of the layout that actually owns ThemeProvider.
-  const [localThemeMode, setLocalThemeMode] = useState(themeMode);
-  const [localAccentColor, setLocalAccentColor] = useState(accentColor);
   // Shares loaded per-thread, lazily, when that thread's Share dialog is
   // opened (listThreadShares is OWNER-only server-side, so this is only
   // ever wired up for threads the caller owns — see the ShareThreadDialog
@@ -127,10 +109,6 @@ function CanvasInner({
   // Action for either the auto-triggered (thread click) or manual ("View
   // catch-up" menu item) path is in flight.
   const [catchUp, setCatchUp] = useState<{ summary: string | null; loading: boolean } | null>(null);
-  // Controlled locally (mirroring the theme/accent pattern above) so the
-  // settings strip's picker reflects a change immediately rather than
-  // waiting on the updatePreferredAiModel round-trip.
-  const [aiModel, setAiModel] = useState(preferredAiModel);
 
   const withOverride = useCallback(
     (task: TaskSummary): TaskSummary => ({ ...task, ...taskEditOverrides[task.id] }),
@@ -290,24 +268,6 @@ function CanvasInner({
       await handleLoadThreadShares(threadId);
     },
     [handleLoadThreadShares]
-  );
-
-  // Applies the CSS variables immediately (so the change is visible without
-  // waiting on the Server Action + router.refresh() round-trip that
-  // reconciles the layout-level ThemeProvider's own props), then persists
-  // the preference and refreshes so a later navigation/reload is consistent.
-  const handleThemeChange = useCallback(
-    async (mode: "LIGHT" | "DARK", color: string) => {
-      setLocalThemeMode(mode);
-      setLocalAccentColor(color);
-      const vars = themeToCssVariables(mode, color);
-      for (const [key, value] of Object.entries(vars)) {
-        document.documentElement.style.setProperty(key, value);
-      }
-      await updateThemePreference(mode, color);
-      router.refresh();
-    },
-    [router]
   );
 
   const nodes = useMemo<Node[]>(() => {
@@ -480,24 +440,6 @@ function CanvasInner({
         ))}
       </div>
 
-      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10, display: "flex", alignItems: "center", gap: 12 }}>
-        <AccentColorPicker
-          value={localAccentColor}
-          onChange={(hex) => handleThemeChange(localThemeMode, hex)}
-        />
-        <ThemeToggle
-          value={localThemeMode}
-          onChange={(mode) => handleThemeChange(mode, localAccentColor)}
-        />
-        <ModelPicker
-          value={aiModel}
-          onChange={async (model) => {
-            setAiModel(model);
-            await updatePreferredAiModel(model);
-          }}
-        />
-      </div>
-
       <ReactFlow
         nodes={nodes}
         nodeTypes={nodeTypes}
@@ -574,9 +516,6 @@ export default function Canvas(props: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
   positions: PositionMap;
-  themeMode: "LIGHT" | "DARK";
-  accentColor: string;
-  preferredAiModel: string;
   // Seeds the initial zoom tier — primarily so tests can render straight
   // into the BUBBLE tier (thread bubbles) without simulating a real
   // ReactFlow zoom gesture, which jsdom can't do. Defaults to "CARD",

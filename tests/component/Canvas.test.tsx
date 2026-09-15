@@ -5,9 +5,7 @@ import { createTask, updateTask } from "@/app/actions/tasks";
 import { listTaskUpdates } from "@/app/actions/taskUpdates";
 import { renameThread, changeThreadCategoryColor, closeThread, deleteThread } from "@/app/actions/threads";
 import { listThreadShares, revokeThreadShare } from "@/app/actions/threadShares";
-import { updateThemePreference } from "@/app/actions/theme";
 import { openThreadAndMaybeGetCatchUp, getStoredThreadSummary } from "@/app/actions/threadCatchUp";
-import { updatePreferredAiModel } from "@/app/actions/aiModel";
 import { suggestTaskPriority } from "@/app/actions/taskPriority";
 
 // @xyflow/react measures node dimensions with ResizeObserver, which jsdom
@@ -47,12 +45,10 @@ vi.mock("@/app/actions/taskUpdates", () => ({
   addTaskUpdate: vi.fn(),
   listTaskUpdates: vi.fn(async () => []),
 }));
-vi.mock("@/app/actions/theme", () => ({ updateThemePreference: vi.fn() }));
 vi.mock("@/app/actions/threadCatchUp", () => ({
   openThreadAndMaybeGetCatchUp: vi.fn(),
   getStoredThreadSummary: vi.fn(),
 }));
-vi.mock("@/app/actions/aiModel", () => ({ updatePreferredAiModel: vi.fn() }));
 vi.mock("@/app/actions/jarvis", () => ({ sendJarvisMessage: vi.fn() }));
 
 const task = {
@@ -68,9 +64,6 @@ const task = {
 };
 
 const defaultThemeProps = {
-  themeMode: "DARK" as const,
-  accentColor: "#38e0ff",
-  preferredAiModel: "gemini-3.8-flash",
   initialJarvisMessages: [],
 };
 
@@ -87,10 +80,8 @@ beforeEach(() => {
   vi.mocked(deleteThread).mockReset().mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof deleteThread>>);
   vi.mocked(listThreadShares).mockReset().mockResolvedValue([]);
   vi.mocked(revokeThreadShare).mockReset().mockResolvedValue(undefined);
-  vi.mocked(updateThemePreference).mockReset();
   vi.mocked(openThreadAndMaybeGetCatchUp).mockReset();
   vi.mocked(getStoredThreadSummary).mockReset();
-  vi.mocked(updatePreferredAiModel).mockReset();
 });
 
 describe("Canvas — task edit race condition", () => {
@@ -252,32 +243,6 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
   });
 });
 
-describe("Canvas — theme settings (Finding 1 wiring)", () => {
-  it("calls updateThemePreference with the new accent color when the color picker changes", async () => {
-    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
-
-    fireEvent.change(screen.getByLabelText("Accent color"), { target: { value: "#ff5fa8" } });
-
-    await waitFor(() => expect(updateThemePreference).toHaveBeenCalledWith("DARK", "#ff5fa8"));
-  });
-
-  it("calls updateThemePreference with the toggled mode when the theme toggle is clicked", async () => {
-    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
-
-    fireEvent.click(screen.getByRole("switch"));
-
-    await waitFor(() => expect(updateThemePreference).toHaveBeenCalledWith("LIGHT", "#38e0ff"));
-  });
-
-  it("applies the chosen accent color to the document root immediately, without waiting on the Server Action", () => {
-    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
-
-    fireEvent.change(screen.getByLabelText("Accent color"), { target: { value: "#ff5fa8" } });
-
-    expect(document.documentElement.style.getPropertyValue("--accent")).toBe("#ff5fa8");
-  });
-});
-
 describe("Canvas — thread sharing management (Finding 2)", () => {
   it("only shows the Share control to a thread's OWNER, not an EDITOR", () => {
     const { rerender } = render(
@@ -306,7 +271,7 @@ describe("Canvas — thread sharing management (Finding 2)", () => {
   });
 });
 
-describe("Canvas — thread catch-up and AI model picker (Task 11 wiring)", () => {
+describe("Canvas — thread catch-up (Task 11 wiring)", () => {
   it("clicking a thread bubble opens the catch-up modal when the server says to show one", async () => {
     vi.mocked(openThreadAndMaybeGetCatchUp).mockResolvedValue({
       showCatchUp: true,
@@ -374,16 +339,6 @@ describe("Canvas — thread catch-up and AI model picker (Task 11 wiring)", () =
     expect(await screen.findByText("Last time: shipped the report.")).toBeInTheDocument();
     expect(getStoredThreadSummary).toHaveBeenCalledWith("th1");
     expect(openThreadAndMaybeGetCatchUp).not.toHaveBeenCalled();
-  });
-
-  it("changing the model picker calls updatePreferredAiModel", async () => {
-    render(<Canvas threads={[]} tasks={[]} positions={{}} {...defaultThemeProps} />);
-
-    fireEvent.change(screen.getByLabelText("AI model"), { target: { value: "gemini-3.1-pro-preview" } });
-
-    await waitFor(() => {
-      expect(updatePreferredAiModel).toHaveBeenCalledWith("gemini-3.1-pro-preview");
-    });
   });
 
   // Finding 6 regression tests: neither handler had a try/catch, so a

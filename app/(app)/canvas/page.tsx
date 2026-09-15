@@ -6,7 +6,6 @@ export default async function CanvasPage() {
   const session = await auth();
   const userId = session!.user!.id!;
 
-  const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
   const ownThreads = await db.thread.findMany({
     where: { ownerId: userId, status: "ACTIVE" },
   });
@@ -57,9 +56,6 @@ export default async function CanvasPage() {
         updateCount: t._count.updates,
       }))}
       positions={positions}
-      themeMode={user.themeMode}
-      accentColor={user.accentColor}
-      preferredAiModel={user.preferredAiModel}
       initialJarvisMessages={jarvisMessages.map((m) => ({
         id: m.id,
         role: m.role,
