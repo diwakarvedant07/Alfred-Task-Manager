@@ -18,6 +18,11 @@ type ThreadMenuProps = {
   onClose: () => void;
   onDelete: () => void;
   onViewCatchUp: () => void;
+  // Mirrors lib/permissions.ts's canManageThreadMeta/canCloseOrDeleteThread,
+  // which the Server Actions these buttons call already enforce — hiding
+  // the items here just keeps the UI from offering something the server
+  // will reject. Default true so existing callers/tests that don't pass
+  // these (and can't know a role) keep seeing every item.
   canEditMeta?: boolean;
   canCloseOrDelete?: boolean;
 };
