@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { resetDb } from "../helpers/resetDb";
-import { signup, SignupError, requestPasswordReset } from "@/app/actions/auth";
+import { signup, SignupError, requestPasswordReset, resetPassword, PasswordResetError } from "@/app/actions/auth";
 
 describe("signup", () => {
   beforeEach(resetDb);
@@ -55,5 +55,57 @@ describe("requestPasswordReset", () => {
     expect(resetUrl).toMatch(/^\/reset-password\?token=[0-9a-f]{64}$/);
     const user = await db.user.findUnique({ where: { email: "nobody@example.com" } });
     expect(user).toBeNull();
+  });
+});
+
+describe("resetPassword", () => {
+  beforeEach(resetDb);
+  afterAll(async () => db.$disconnect());
+
+  async function requestToken(email: string): Promise<string> {
+    const { resetUrl } = await requestPasswordReset(email);
+    return new URL(resetUrl!, "http://x").searchParams.get("token")!;
+  }
+
+  it("updates the password and clears the token", async () => {
+    await signup({ email: "reset2@example.com", password: "oldpassword", name: "Reese" });
+    const token = await requestToken("reset2@example.com");
+
+    await resetPassword(token, "newpassword123");
+
+    const user = await db.user.findUniqueOrThrow({ where: { email: "reset2@example.com" } });
+    expect(await bcrypt.compare("newpassword123", user.passwordHash)).toBe(true);
+    expect(user.resetTokenHash).toBeNull();
+    expect(user.resetTokenExpiresAt).toBeNull();
+  });
+
+  it("rejects an unknown token", async () => {
+    await expect(resetPassword("not-a-real-token", "newpassword123")).rejects.toThrow(PasswordResetError);
+  });
+
+  it("rejects a token that has already expired", async () => {
+    await signup({ email: "reset3@example.com", password: "oldpassword", name: "Reese" });
+    const token = await requestToken("reset3@example.com");
+    await db.user.update({
+      where: { email: "reset3@example.com" },
+      data: { resetTokenExpiresAt: new Date(Date.now() - 1000) },
+    });
+
+    await expect(resetPassword(token, "newpassword123")).rejects.toThrow(PasswordResetError);
+  });
+
+  it("rejects a password shorter than 8 characters", async () => {
+    await signup({ email: "reset4@example.com", password: "oldpassword", name: "Reese" });
+    const token = await requestToken("reset4@example.com");
+
+    await expect(resetPassword(token, "short")).rejects.toThrow(PasswordResetError);
+  });
+
+  it("rejects reusing an already-consumed token", async () => {
+    await signup({ email: "reset5@example.com", password: "oldpassword", name: "Reese" });
+    const token = await requestToken("reset5@example.com");
+    await resetPassword(token, "newpassword123");
+
+    await expect(resetPassword(token, "anotherpassword123")).rejects.toThrow(PasswordResetError);
   });
 });

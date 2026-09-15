@@ -64,3 +64,20 @@ export async function requestPasswordReset(email: string): Promise<{ resetUrl: s
   // ever persisted; the raw token lives only in this returned URL.
   return { resetUrl: `/reset-password?token=${token}` };
 }
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  if (newPassword.length < 8) {
+    throw new PasswordResetError("Password must be at least 8 characters.");
+  }
+
+  const user = await db.user.findFirst({ where: { resetTokenHash: hashResetToken(token) } });
+  if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
+    throw new PasswordResetError("This reset link is invalid or has expired.");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash, resetTokenHash: null, resetTokenExpiresAt: null },
+  });
+}
