@@ -969,6 +969,9 @@ export default function TaskDetailPanel({
   onUpdateTask: (patch: Partial<Pick<Task, "title" | "description" | "workStatus" | "priority" | "dueDate">>) => void;
   onAddComment: (body: string) => void;
   onClose: () => void;
+  // Viewers can read and comment on a shared thread's tasks but not edit
+  // them (enforced server-side too) — defaults to true so callers that
+  // don't track roles (and existing tests) keep every field editable.
   canEdit?: boolean;
 }) {
   const [draft, setDraft] = useState("");
