@@ -65,8 +65,8 @@ export default function ShareThreadDialog({
           Cancel
         </Button>
         <Button
-          onClick={() => {
-            onShare(email, permission);
+          onClick={async () => {
+            await onShare(email, permission);
             setOpen(false);
           }}
         >

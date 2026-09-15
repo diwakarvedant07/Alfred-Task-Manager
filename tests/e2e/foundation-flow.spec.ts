@@ -77,6 +77,14 @@ test("signup, thread/task creation, sharing, delete, and recycle-bin restore", a
     await page.getByLabel("Email").fill(viewerEmail);
     await page.getByLabel("Permission").selectOption("VIEWER");
     await page.getByRole("button", { name: "Share thread" }).click();
+    // The dialog's confirm button awaits the share server action before
+    // closing, so waiting for it to disappear (and the "Share" trigger to
+    // reappear) is how the test knows the share actually completed server-
+    // side, rather than racing the viewer's page load below against it.
+    // exact:true matters here — getByRole's name match is substring by
+    // default, so "Share" would otherwise still match the "Share thread"
+    // button while the dialog is mid-close, defeating the wait.
+    await expect(page.getByRole("button", { name: "Share", exact: true })).toBeVisible();
   });
 
   await test.step("viewer sees the shared thread and task, and can comment", async () => {
