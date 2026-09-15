@@ -34,20 +34,30 @@ function hashResetToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-export async function requestPasswordReset(email: string): Promise<{ resetUrl: string | null }> {
+export async function requestPasswordReset(email: string): Promise<{ resetUrl: string }> {
   const normalized = email.trim().toLowerCase();
   const user = await db.user.findUnique({ where: { email: normalized } });
-  if (!user) return { resetUrl: null };
 
   const token = crypto.randomBytes(32).toString("hex");
-  await db.user.update({
-    where: { id: user.id },
-    data: {
-      resetTokenHash: hashResetToken(token),
-      resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
-    },
-  });
 
+  if (user) {
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        resetTokenHash: hashResetToken(token),
+        resetTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    });
+  }
+
+  // Always return a URL-shaped response, even for an unknown email —
+  // returning null only in that case would make this response itself a
+  // user-enumeration oracle, since a Server Action is a directly callable
+  // network endpoint, not something reached only through the UI. For an
+  // unknown email, `token` is generated but never stored, so the resulting
+  // link simply won't validate in resetPassword() — same as any other
+  // garbage token.
+  //
   // Dev-mode convenience: no email provider is configured in this project
   // (see .env.example), so the reset link is handed back to the caller to
   // display directly instead of being emailed. Only the token's hash is

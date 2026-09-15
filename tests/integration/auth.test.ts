@@ -36,7 +36,7 @@ describe("requestPasswordReset", () => {
   beforeEach(resetDb);
   afterAll(async () => db.$disconnect());
 
-  it("returns a reset URL containing a token for an existing account", async () => {
+  it("returns a reset URL containing a token for an existing account, storing only its hash", async () => {
     await signup({ email: "reset@example.com", password: "correcthorse", name: "Reese" });
 
     const { resetUrl } = await requestPasswordReset("Reset@Example.com");
@@ -45,12 +45,15 @@ describe("requestPasswordReset", () => {
     const user = await db.user.findUniqueOrThrow({ where: { email: "reset@example.com" } });
     expect(user.resetTokenHash).not.toBeNull();
     expect(user.resetTokenExpiresAt).not.toBeNull();
-    const token = new URL(resetUrl!, "http://x").searchParams.get("token")!;
+    const token = new URL(resetUrl, "http://x").searchParams.get("token")!;
     expect(user.resetTokenHash).not.toBe(token);
   });
 
-  it("returns a null resetUrl for an email with no account", async () => {
+  it("returns an equally URL-shaped response for an unknown email, without creating a user or storing a token", async () => {
     const { resetUrl } = await requestPasswordReset("nobody@example.com");
-    expect(resetUrl).toBeNull();
+
+    expect(resetUrl).toMatch(/^\/reset-password\?token=[0-9a-f]{64}$/);
+    const user = await db.user.findUnique({ where: { email: "nobody@example.com" } });
+    expect(user).toBeNull();
   });
 });
