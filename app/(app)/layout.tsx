@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Navbar from "@/components/shell/Navbar";
@@ -6,7 +7,16 @@ import Sidebar from "@/components/shell/Sidebar";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const userId = session!.user!.id!;
-  const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
+  // The session cookie's signature can still be valid (next-auth JWT
+  // sessions are stateless) after the user row it points at is gone — e.g.
+  // a dev DB reset while a browser still holds an old session. Redirect
+  // instead of letting findUniqueOrThrow crash the whole route with an
+  // unhandled 500.
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    redirect("/login");
+    return;
+  }
 
   return (
     <div className="flex h-full flex-1">
