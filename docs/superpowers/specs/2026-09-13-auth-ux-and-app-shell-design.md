@@ -83,11 +83,13 @@ emailed — a documented dev-mode convenience, not a production posture.
 
 **`app/(auth)/forgot-password/page.tsx`** (new): a single email field.
 Submits to `requestPasswordReset(email)`. The confirmation view is
-generic regardless of whether the account exists ("If an account exists
-for that email, a reset link has been generated"), but when the account
-*does* exist, the page additionally renders the returned reset URL in a
-clearly-labeled "Dev mode" callout box so it can be used without an
-inbox. Links back to `/login`.
+identical regardless of whether the account exists — always the generic
+message ("If an account exists for that email, a reset link has been
+generated") plus the returned reset URL in a clearly-labeled "Dev mode"
+callout box, since `requestPasswordReset` always returns a URL-shaped
+response now (see below — this was corrected mid-implementation from an
+earlier draft that conditionally omitted the link). Links back to
+`/login`.
 
 **`app/(auth)/reset-password/page.tsx`** (new): reads `token` from
 `searchParams` (typed as a `Promise`, per the Next.js 16 async
@@ -105,7 +107,7 @@ export class PasswordResetError extends Error {}
 
 export async function requestPasswordReset(
   email: string
-): Promise<{ resetUrl: string | null }> { ... }
+): Promise<{ resetUrl: string }> { ... }
 
 export async function resetPassword(
   token: string,
@@ -113,13 +115,24 @@ export async function resetPassword(
 ): Promise<void> { ... }
 ```
 
-- `requestPasswordReset` normalizes the email, looks up the user, and
-  returns `{ resetUrl: null }` when no account matches (no user
-  enumeration via response shape). When a match is found, it generates a
-  32-byte random token (`crypto.randomBytes`), stores only its SHA-256
-  hash plus a 1-hour expiry on the user row, and returns
-  `{ resetUrl: "/reset-password?token=<raw token>" }`. The raw token is
-  never persisted — only its hash.
+- `requestPasswordReset` normalizes the email and looks up the user. A
+  32-byte random token (`crypto.randomBytes`) is generated unconditionally,
+  and **always** returned as `{ resetUrl: "/reset-password?token=<raw
+  token>" }` — for a matching account, its hash plus a 1-hour expiry are
+  stored on the user row first; for no match, nothing is stored and the
+  token is simply inert. This response never being `null` is a deliberate
+  correction made during implementation: an earlier draft returned `{
+  resetUrl: null }` for an unknown email, which made the response *shape*
+  itself a user-enumeration oracle for any direct caller of the Server
+  Action (not just the UI). Returning an identically-shaped URL either way
+  closes that specific channel. The raw token is never persisted — only
+  its hash. Note this does not eliminate enumeration end-to-end: since the
+  link is revealed to the caller rather than emailed (the whole point of
+  the dev-mode approach below), anyone holding a returned link can still
+  learn account existence from `resetPassword`'s outcome. That residual
+  risk is accepted as inherent to the dev-mode reveal for this project,
+  not something this response shape can fix — see `app/actions/auth.ts`'s
+  comments for the production guard this implies.
 - `resetPassword` re-hashes the supplied token, looks up the user by
   `resetTokenHash`, rejects with `PasswordResetError` if there's no match
   or the stored `resetTokenExpiresAt` has passed, otherwise updates
@@ -186,8 +199,9 @@ Following the project's existing test structure:
   style of existing tests like `ThemeToggle.test.tsx`.
 - **Integration tests** (`tests/integration/auth.test.ts`): extend the
   existing file with cases for `requestPasswordReset` (returns a URL for
-  an existing user, returns `null` for a non-existent one, never returns
-  the raw token in a form that skips hashing) and `resetPassword` (happy
+  an existing user, returns an equally URL-shaped response for a
+  non-existent one without creating a user or storing a token, never
+  returns the raw token in a form that skips hashing) and `resetPassword` (happy
   path actually changes the password, rejects an expired token, rejects
   an unknown token, rejects a too-short new password, and rejects reuse
   of an already-consumed token) — mirroring the existing `signup`
