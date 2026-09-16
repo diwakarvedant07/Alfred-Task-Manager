@@ -27,7 +27,7 @@ export default function Select({
       </label>
       <select
         id={inputId}
-        className={`rounded-lg border border-[var(--text,#eafcff)]/15 bg-[var(--panel-bg,rgba(15,25,35,0.85))] px-3 py-2 text-[var(--text,#eafcff)] outline-none transition-colors focus:border-[var(--accent,#38e0ff)] ${className}`}
+        className={`w-full rounded-lg border border-[var(--text,#eafcff)]/15 bg-[var(--panel-bg,rgba(15,25,35,0.85))] px-3 py-2 text-[var(--text,#eafcff)] outline-none transition-colors focus:border-[var(--accent,#38e0ff)] disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
         {...rest}
       >
         {children}
