@@ -4,6 +4,13 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Without this, `next start` (production mode) rejects every
+  // /api/auth/* request with UntrustedHost -- next-auth v5 only trusts the
+  // request's Host header automatically in dev. This app has no real
+  // production deployment (self-hosted/local only, same dev-mode-only
+  // posture as the password-reset flow), so trusting the host here is safe;
+  // `next dev` never hit this because it doesn't enforce the check.
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   callbacks: {
