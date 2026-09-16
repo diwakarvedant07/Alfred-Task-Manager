@@ -10,5 +10,6 @@ export async function resetDb() {
   await db.task.deleteMany();
   await db.thread.deleteMany();
   await db.jarvisMessage.deleteMany();
+  await db.jarvisSession.deleteMany();
   await db.user.deleteMany();
 }

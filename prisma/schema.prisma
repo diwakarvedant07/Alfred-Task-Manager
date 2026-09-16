@@ -63,6 +63,7 @@ model User {
   sharesReceived ThreadShare[]  @relation("ShareRecipient")
   threadViews    ThreadView[]
   jarvisMessages JarvisMessage[]
+  jarvisSessions JarvisSession[]
 }
 
 model Thread {
@@ -176,14 +177,31 @@ model ThreadSummary {
   updatedAt      DateTime @updatedAt
 }
 
-model JarvisMessage {
-  id        String            @id @default(cuid())
+model JarvisSession {
+  id        String          @id @default(cuid())
   userId    String
-  user      User              @relation(fields: [userId], references: [id])
-  role      JarvisMessageRole
-  content   String
-  toolCalls Json?
-  createdAt DateTime          @default(now())
+  user      User            @relation(fields: [userId], references: [id])
+  title     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  messages  JarvisMessage[]
 
-  @@index([userId, createdAt])
+  @@index([userId, updatedAt])
+}
+
+model JarvisMessage {
+  id               String            @id @default(cuid())
+  sessionId        String
+  session          JarvisSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User              @relation(fields: [userId], references: [id])
+  role             JarvisMessageRole
+  content          String
+  toolCalls        Json?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  createdAt        DateTime          @default(now())
+
+  @@index([sessionId, createdAt])
 }
