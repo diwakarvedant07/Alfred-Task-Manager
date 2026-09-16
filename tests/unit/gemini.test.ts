@@ -72,7 +72,7 @@ describe("generateWithTools", () => {
     });
   });
 
-  it("returns text, functionCalls, and modelContent from the response", async () => {
+  it("returns text, functionCalls, modelContent, and usage from the response", async () => {
     const modelContent = {
       role: "model",
       parts: [{ functionCall: { name: "createTaskInThread", args: { threadId: "t1", title: "Do X" } } }],
@@ -81,6 +81,7 @@ describe("generateWithTools", () => {
       text: undefined,
       functionCalls: [{ name: "createTaskInThread", args: { threadId: "t1", title: "Do X" } }],
       candidates: [{ content: modelContent }],
+      usageMetadata: { promptTokenCount: 76, candidatesTokenCount: 28, totalTokenCount: 104 },
     });
 
     const result = await generateWithTools("gemini-3.8-flash", [], {});
@@ -88,6 +89,19 @@ describe("generateWithTools", () => {
     expect(result.text).toBe("");
     expect(result.functionCalls).toEqual([{ name: "createTaskInThread", args: { threadId: "t1", title: "Do X" } }]);
     expect(result.modelContent).toEqual(modelContent);
+    expect(result.usage).toEqual({ promptTokenCount: 76, candidatesTokenCount: 28, totalTokenCount: 104 });
+  });
+
+  it("defaults usage counts to 0 when usageMetadata is missing", async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: "just text",
+      functionCalls: undefined,
+      candidates: [{ content: { role: "model", parts: [{ text: "just text" }] } }],
+    });
+
+    const result = await generateWithTools("gemini-3.8-flash", [], {});
+
+    expect(result.usage).toEqual({ promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 });
   });
 
   it("returns an empty functionCalls array when the response has none", async () => {

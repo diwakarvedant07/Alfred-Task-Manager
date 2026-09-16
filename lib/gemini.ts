@@ -15,7 +15,12 @@ export async function generateWithTools(
   model: string,
   contents: Content[],
   config: { systemInstruction?: string; tools?: FunctionDeclaration[] }
-): Promise<{ text: string; functionCalls: FunctionCall[]; modelContent: Content }> {
+): Promise<{
+  text: string;
+  functionCalls: FunctionCall[];
+  modelContent: Content;
+  usage: { promptTokenCount: number; candidatesTokenCount: number; totalTokenCount: number };
+}> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set.");
@@ -35,5 +40,10 @@ export async function generateWithTools(
     text: response.text ?? "",
     functionCalls: response.functionCalls ?? [],
     modelContent: response.candidates?.[0]?.content ?? { role: "model", parts: [] },
+    usage: {
+      promptTokenCount: response.usageMetadata?.promptTokenCount ?? 0,
+      candidatesTokenCount: response.usageMetadata?.candidatesTokenCount ?? 0,
+      totalTokenCount: response.usageMetadata?.totalTokenCount ?? 0,
+    },
   };
 }
