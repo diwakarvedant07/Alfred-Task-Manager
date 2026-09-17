@@ -128,6 +128,30 @@ describe("JarvisWorkspace", () => {
     expect(screen.queryByText("hi")).not.toBeInTheDocument();
   });
 
+  it("sending with no active session auto-creates one first, then sends to it", async () => {
+    vi.mocked(listJarvisSessions).mockResolvedValueOnce([]).mockResolvedValue([
+      { id: "brand-new", title: "hey there", updatedAt: new Date() },
+    ] as never);
+    vi.mocked(createJarvisSession).mockResolvedValue({ id: "brand-new", title: null } as never);
+    vi.mocked(sendJarvisMessage).mockResolvedValue({
+      userMessage: { id: "u1" } as never,
+      assistantMessage: { id: "a1" } as never,
+    });
+    render(<JarvisWorkspace initialSessions={[]} onClose={vi.fn()} />);
+
+    vi.mocked(listJarvisMessages).mockResolvedValue([
+      { id: "u1", role: "USER", content: "hey there", toolCalls: null, totalTokens: null },
+      { id: "a1", role: "ASSISTANT", content: "Hi!", toolCalls: null, totalTokens: 5 },
+    ] as never);
+
+    fireEvent.change(screen.getByLabelText("Message Jarvis"), { target: { value: "hey there" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(createJarvisSession).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(sendJarvisMessage).toHaveBeenCalledWith("brand-new", "hey there"));
+    await waitFor(() => expect(screen.getByText("Hi!")).toBeInTheDocument());
+  });
+
   it("deletes a session and falls back to another remaining one", async () => {
     vi.mocked(listJarvisSessions)
       .mockResolvedValueOnce([
