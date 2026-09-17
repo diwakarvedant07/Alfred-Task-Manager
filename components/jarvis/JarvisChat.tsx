@@ -28,7 +28,7 @@ export default function JarvisChat({
   messages: JarvisMessageView[];
   sending: boolean;
   error: string | null;
-  onSend: (text: string) => void;
+  onSend: (text: string) => Promise<boolean>;
   onRenameSession: (title: string) => void;
   onClose: () => void;
 }) {
@@ -48,11 +48,12 @@ export default function JarvisChat({
     setEditingTitle(false);
   }
 
-  function handleSend() {
+  async function handleSend() {
     const text = draft.trim();
     if (!text || sending) return;
     setDraft("");
-    onSend(text);
+    const succeeded = await onSend(text);
+    if (!succeeded) setDraft(text);
   }
 
   return (
@@ -66,7 +67,10 @@ export default function JarvisChat({
             onBlur={commitTitle}
             onKeyDown={(e) => {
               if (e.key === "Enter") commitTitle();
-              if (e.key === "Escape") setEditingTitle(false);
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                setEditingTitle(false);
+              }
             }}
             aria-label="Session title"
             className="min-w-0 flex-1 rounded border border-[var(--accent,#38e0ff)]/40 bg-transparent px-2 py-1 text-lg font-semibold text-[var(--text,#eafcff)] outline-none"

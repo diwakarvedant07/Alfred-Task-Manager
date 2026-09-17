@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import JarvisChat from "@/components/jarvis/JarvisChat";
 
 const MESSAGES = [
@@ -95,8 +95,8 @@ describe("JarvisChat", () => {
     expect(screen.queryByTestId("jarvis-loading")).not.toBeInTheDocument();
   });
 
-  it("sends a trimmed message and clears the draft", () => {
-    const onSend = vi.fn();
+  it("sends a trimmed message and clears the draft", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
     render(
       <JarvisChat
         sessionTitle="x"
@@ -114,6 +114,34 @@ describe("JarvisChat", () => {
 
     expect(onSend).toHaveBeenCalledWith("call the vendor");
     expect(screen.getByLabelText("Message Jarvis")).toHaveValue("");
+    // Give the (resolved) onSend promise a chance to settle and confirm the
+    // draft stays cleared on success -- it should not be restored.
+    await waitFor(() => expect(onSend).toHaveReturned());
+    expect(screen.getByLabelText("Message Jarvis")).toHaveValue("");
+  });
+
+  it("restores the typed draft when onSend's returned promise resolves to false (send failed)", async () => {
+    const onSend = vi.fn().mockResolvedValue(false);
+    render(
+      <JarvisChat
+        sessionTitle="x"
+        messages={[]}
+        sending={false}
+        error={null}
+        onSend={onSend}
+        onRenameSession={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Message Jarvis"), { target: { value: "hi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(onSend).toHaveBeenCalledWith("hi");
+    // Cleared optimistically before onSend resolves...
+    expect(screen.getByLabelText("Message Jarvis")).toHaveValue("");
+    // ...then restored once the promise resolves to false.
+    await waitFor(() => expect(screen.getByLabelText("Message Jarvis")).toHaveValue("hi"));
   });
 
   it("does not send an empty message", () => {
