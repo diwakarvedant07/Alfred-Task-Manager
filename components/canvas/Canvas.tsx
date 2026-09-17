@@ -21,6 +21,8 @@ import ShareThreadDialog from "./ShareThreadDialog";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
 import CatchUpModal from "./CatchUpModal";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
+import JarvisWorkspace from "@/components/jarvis/JarvisWorkspace";
+import type { JarvisSessionSummary } from "@/components/jarvis/JarvisSessionList";
 import { saveTaskPosition } from "@/app/actions/taskPositions";
 import {
   createThread,
@@ -61,22 +63,18 @@ function CanvasInner({
   tasks,
   positions,
   initialTier,
-  initialJarvisMessages,
+  initialJarvisSessions,
 }: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
   positions: PositionMap;
   initialTier?: "BUBBLE" | "CARD";
-  initialJarvisMessages: {
-    id: string;
-    role: "USER" | "ASSISTANT";
-    content: string;
-    toolCalls: { tool: string; success: boolean; summary: string }[] | null;
-  }[];
+  initialJarvisSessions: JarvisSessionSummary[];
 }) {
   const { getZoom } = useReactFlow();
   const router = useRouter();
   const [tier, setTier] = useState<"BUBBLE" | "CARD">(initialTier ?? "CARD");
+  const [jarvisWorkspaceOpen, setJarvisWorkspaceOpen] = useState(false);
   // Shares loaded per-thread, lazily, when that thread's Share dialog is
   // opened (listThreadShares is OWNER-only server-side, so this is only
   // ever wired up for threads the caller owns — see the ShareThreadDialog
@@ -415,42 +413,59 @@ function CanvasInner({
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      <div style={{ position: "absolute", top: 8, left: 8, zIndex: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-        <NewThreadButton onCreate={handleCreateThread} />
-        {threads.map((thread) => (
-          <div key={thread.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span>{thread.name}</span>
-            <NewTaskButton
-              threadId={thread.id}
-              onCreate={(input) => handleCreateTask(thread.id, input)}
-            />
-            {/* Sharing (invite/list/revoke) is OWNER-only server-side
-                (lib/permissions.ts canManageShares) — the whole dialog is
-                hidden for an EDITOR/VIEWER rather than shown and rejected. */}
-            {thread.role === "OWNER" && (
-              <ShareThreadDialog
-                threadId={thread.id}
-                onShare={(email, permission) => handleShareThread(thread.id, email, permission)}
-                onOpen={() => handleLoadThreadShares(thread.id)}
-                shares={threadShares[thread.id] ?? []}
-                onRevoke={(shareId) => handleRevokeThreadShare(thread.id, shareId)}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      <ReactFlow
-        nodes={nodes}
-        nodeTypes={nodeTypes}
-        onMoveEnd={handleMoveEnd}
-        onNodeDragStop={handleNodeDragStop}
-        onNodeClick={handleNodeClick}
-        fitView
+      {/* Toolbar and ReactFlow are resized together as one unit -- when the
+          Jarvis workspace is open, this whole region shrinks into a
+          right-pinned strip via `fixed` positioning (which also makes it a
+          containing block for the toolbar's `position: absolute` below, so
+          "top:8 left:8" anchors to this strip, not the full viewport) rather
+          than the ReactFlow canvas alone, so the toolbar stays visually
+          attached to it instead of floating disconnected at the old
+          top-left. The SAME <ReactFlow> element is reused either way (no
+          remount), so pan/zoom state survives opening and closing Jarvis. */}
+      <div
+        className={
+          jarvisWorkspaceOpen
+            ? "fixed inset-y-0 right-0 z-[115] w-[38%] min-w-[360px] border-l border-[var(--text,#eafcff)]/10"
+            : "absolute inset-0"
+        }
       >
-        <Background />
-        <Controls />
-      </ReactFlow>
+        <div style={{ position: "absolute", top: 8, left: 8, zIndex: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <NewThreadButton onCreate={handleCreateThread} />
+          {threads.map((thread) => (
+            <div key={thread.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span>{thread.name}</span>
+              <NewTaskButton
+                threadId={thread.id}
+                onCreate={(input) => handleCreateTask(thread.id, input)}
+              />
+              {/* Sharing (invite/list/revoke) is OWNER-only server-side
+                  (lib/permissions.ts canManageShares) — the whole dialog is
+                  hidden for an EDITOR/VIEWER rather than shown and rejected. */}
+              {thread.role === "OWNER" && (
+                <ShareThreadDialog
+                  threadId={thread.id}
+                  onShare={(email, permission) => handleShareThread(thread.id, email, permission)}
+                  onOpen={() => handleLoadThreadShares(thread.id)}
+                  shares={threadShares[thread.id] ?? []}
+                  onRevoke={(shareId) => handleRevokeThreadShare(thread.id, shareId)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <ReactFlow
+          nodes={nodes}
+          nodeTypes={nodeTypes}
+          onMoveEnd={handleMoveEnd}
+          onNodeDragStop={handleNodeDragStop}
+          onNodeClick={handleNodeClick}
+          fitView
+        >
+          <Background />
+          <Controls />
+        </ReactFlow>
+      </div>
 
       {catchUp && (
         <CatchUpModal
@@ -507,7 +522,10 @@ function CanvasInner({
         </div>
       )}
 
-      <JarvisPanel initialMessages={initialJarvisMessages} />
+      {!jarvisWorkspaceOpen && <JarvisPanel onOpen={() => setJarvisWorkspaceOpen(true)} />}
+      {jarvisWorkspaceOpen && (
+        <JarvisWorkspace initialSessions={initialJarvisSessions} onClose={() => setJarvisWorkspaceOpen(false)} />
+      )}
     </div>
   );
 }
@@ -521,12 +539,7 @@ export default function Canvas(props: {
   // ReactFlow zoom gesture, which jsdom can't do. Defaults to "CARD",
   // matching the previous hardcoded initial state.
   initialTier?: "BUBBLE" | "CARD";
-  initialJarvisMessages: {
-    id: string;
-    role: "USER" | "ASSISTANT";
-    content: string;
-    toolCalls: { tool: string; success: boolean; summary: string }[] | null;
-  }[];
+  initialJarvisSessions: JarvisSessionSummary[];
 }) {
   return (
     <div style={{ width: "100%", height: "100vh", background: "var(--bg)", overflow: "hidden" }}>

@@ -50,6 +50,18 @@ vi.mock("@/app/actions/threadCatchUp", () => ({
   getStoredThreadSummary: vi.fn(),
 }));
 vi.mock("@/app/actions/jarvis", () => ({ sendJarvisMessage: vi.fn() }));
+// Canvas renders JarvisWorkspace (Task 10), which imports these Server
+// Actions. Real jarvisSessions.ts imports lib/auth (next-auth) which fails
+// to resolve "next/server" in this jsdom test environment (see
+// JarvisWorkspace.test.tsx, which mocks the same module for the same
+// reason) -- mock it so importing Canvas doesn't pull in that chain.
+vi.mock("@/app/actions/jarvisSessions", () => ({
+  createJarvisSession: vi.fn(),
+  listJarvisSessions: vi.fn(async () => []),
+  renameJarvisSession: vi.fn(),
+  deleteJarvisSession: vi.fn(),
+  listJarvisMessages: vi.fn(async () => []),
+}));
 
 const task = {
   id: "t1",
@@ -64,7 +76,7 @@ const task = {
 };
 
 const defaultThemeProps = {
-  initialJarvisMessages: [],
+  initialJarvisSessions: [],
 };
 
 beforeEach(() => {
