@@ -67,34 +67,64 @@ export default function JarvisWorkspace({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // A Modal (e.g. "New Thread"/"Share", triggered from the canvas strip
+      // alongside this workspace) also listens for Escape on `document`. If
+      // one is open, let it handle the key and close itself only -- without
+      // this check, one Escape press closed both the dialog and this whole
+      // workspace. Modal.tsx's dialog always carries both attributes.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      onClose();
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
+  // A generic, user-visible fallback for the session-management handlers
+  // below -- mirrors Canvas.tsx's handleThreadBubbleClick pattern of
+  // catching a failed Server Action and surfacing it via the same `error`
+  // state used elsewhere, instead of letting it become a silent unhandled
+  // rejection.
+  const FAILURE_MESSAGE = "Couldn't reach Jarvis — please try again.";
+
   async function handleNewChat() {
-    const created = await createJarvisSession();
-    await refreshSessions();
-    await loadSession(created.id);
+    try {
+      const created = await createJarvisSession();
+      await refreshSessions();
+      await loadSession(created.id);
+    } catch {
+      setError(FAILURE_MESSAGE);
+    }
   }
 
   async function handleSelect(sessionId: string) {
     if (sessionId === activeSessionId) return;
-    await loadSession(sessionId);
+    try {
+      await loadSession(sessionId);
+    } catch {
+      setError(FAILURE_MESSAGE);
+    }
   }
 
   async function handleRename(sessionId: string, title: string) {
-    await renameJarvisSession(sessionId, title);
-    await refreshSessions();
+    try {
+      await renameJarvisSession(sessionId, title);
+      await refreshSessions();
+    } catch {
+      setError(FAILURE_MESSAGE);
+    }
   }
 
   async function handleDelete(sessionId: string) {
-    await deleteJarvisSession(sessionId);
-    const remaining = sessions.filter((s) => s.id !== sessionId);
-    await refreshSessions();
-    if (activeSessionId === sessionId) {
-      await loadSession(remaining[0]?.id ?? null);
+    try {
+      await deleteJarvisSession(sessionId);
+      const remaining = sessions.filter((s) => s.id !== sessionId);
+      await refreshSessions();
+      if (activeSessionId === sessionId) {
+        await loadSession(remaining[0]?.id ?? null);
+      }
+    } catch {
+      setError(FAILURE_MESSAGE);
     }
   }
 
@@ -103,14 +133,9 @@ export default function JarvisWorkspace({
     await handleRename(activeSessionId, title);
   }
 
-  async function handleSend(text: string) {
-    let sessionId = activeSessionId;
-    if (!sessionId) {
-      const created = await createJarvisSession();
-      sessionId = created.id;
-      setActiveSessionId(sessionId);
-      await refreshSessions();
-    }
+  // Returns whether the send succeeded, so JarvisChat can restore the
+  // user's typed draft on failure instead of losing it.
+  async function handleSend(text: string): Promise<boolean> {
     setError(null);
     setSending(true);
     setMessages((prev) => [
@@ -118,6 +143,19 @@ export default function JarvisWorkspace({
       { id: `pending-user-${Date.now()}`, role: "USER", content: text, toolCalls: null, totalTokens: null },
     ]);
     try {
+      let sessionId = activeSessionId;
+      if (!sessionId) {
+        // Moved inside this try (rather than ahead of it) so a failure
+        // creating the session is caught by the same catch/finally as
+        // everything else below -- previously this sat outside the try
+        // block entirely, so a rejection here escaped handleSend with no
+        // error shown, `sending` never reset, and the draft already
+        // cleared.
+        const created = await createJarvisSession();
+        sessionId = created.id;
+        setActiveSessionId(sessionId);
+        await refreshSessions();
+      }
       await sendJarvisMessage(sessionId, text);
       const raw = await listJarvisMessages(sessionId);
       setMessages(raw.map(toMessageView));
@@ -126,9 +164,11 @@ export default function JarvisWorkspace({
       // reach the canvas's server-rendered props -- this is what makes the
       // right-side canvas preview actually live.
       router.refresh();
+      return true;
     } catch {
-      setError("Couldn't reach Jarvis — please try again.");
+      setError(FAILURE_MESSAGE);
       setMessages((prev) => prev.filter((m) => !m.id.startsWith("pending-user-")));
+      return false;
     } finally {
       setSending(false);
     }

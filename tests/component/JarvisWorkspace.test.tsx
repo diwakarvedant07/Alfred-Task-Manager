@@ -116,7 +116,7 @@ describe("JarvisWorkspace", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an error and removes the optimistic message when sendJarvisMessage rejects", async () => {
+  it("shows an error, removes the optimistic message, and restores the typed draft when sendJarvisMessage rejects", async () => {
     vi.mocked(sendJarvisMessage).mockRejectedValue(new Error("network down"));
     render(<JarvisWorkspace initialSessions={SESSIONS} onClose={vi.fn()} />);
     await waitFor(() => expect(listJarvisMessages).toHaveBeenCalledWith("s1"));
@@ -125,7 +125,11 @@ describe("JarvisWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/couldn't reach jarvis/i));
-    expect(screen.queryByText("hi")).not.toBeInTheDocument();
+    // The optimistic "hi" chat bubble is gone from the message list...
+    expect(screen.queryAllByTestId("jarvis-message").some((el) => el.textContent?.includes("hi"))).toBe(false);
+    // ...but the typed text is restored to the composer rather than lost --
+    // handleSend returns false on failure so JarvisChat can put it back.
+    expect(screen.getByLabelText("Message Jarvis")).toHaveValue("hi");
   });
 
   it("sending with no active session auto-creates one first, then sends to it", async () => {
