@@ -425,7 +425,7 @@ function CanvasInner({
       <div
         className={
           jarvisWorkspaceOpen
-            ? "fixed inset-y-0 right-0 z-[115] w-[38%] min-w-[360px] border-l border-[var(--text,#eafcff)]/10"
+            ? "fixed inset-y-0 right-0 z-[115] w-[max(38%,360px)] border-l border-[var(--text,#eafcff)]/10"
             : "absolute inset-0"
         }
       >

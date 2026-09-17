@@ -137,7 +137,14 @@ export default function JarvisWorkspace({
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex bg-[var(--bg,#0a0e14)]">
+    // right-[max(38%,360px)] reserves exactly the width Canvas.tsx's resized
+    // canvas strip occupies (w-[max(38%,360px)]) instead of overlapping it --
+    // both were previously `inset-0`/`w-[38%] min-w-[360px]` sized
+    // independently, so the canvas (a higher z-index, since it must also
+    // clear catch-up/task-detail overlays) visually and interactively sat on
+    // top of this pane's own right edge, silently blocking clicks on
+    // anything positioned there (e.g. JarvisChat's Close button).
+    <div className="fixed inset-y-0 left-0 right-[max(38%,360px)] z-[110] flex bg-[var(--bg,#0a0e14)]">
       <JarvisSessionList
         sessions={sessions}
         activeSessionId={activeSessionId}
