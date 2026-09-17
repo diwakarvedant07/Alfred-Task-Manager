@@ -62,7 +62,10 @@ export default function JarvisSessionList({
                   onBlur={() => commitRename(s.id)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") commitRename(s.id);
-                    if (e.key === "Escape") setEditingId(null);
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setEditingId(null);
+                    }
                   }}
                 />
               </div>
