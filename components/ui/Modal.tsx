@@ -36,7 +36,7 @@ export default function Modal({
   // button inside a `position: absolute; z-index: 10` toolbar, which forms
   // its own stacking context. A `position: fixed` descendant does NOT escape
   // an ancestor's stacking context, so without the portal this backdrop's
-  // z-40 only wins against other elements inside that same z-index:10
+  // z-index only wins against other elements inside that same z-index:10
   // context -- it still loses to siblings like JarvisPanel (z-30) and the
   // task-detail rail (zIndex 20) at the root level, regardless of this
   // component's own z-index.
