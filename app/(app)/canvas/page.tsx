@@ -28,13 +28,11 @@ export default async function CanvasPage() {
     taskPositions.map((p) => [p.taskId, { x: p.positionX, y: p.positionY }])
   );
 
-  const jarvisMessages = (
-    await db.jarvisMessage.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    })
-  ).reverse();
+  const jarvisSessions = await db.jarvisSession.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true, updatedAt: true },
+  });
 
   return (
     <Canvas
@@ -56,12 +54,7 @@ export default async function CanvasPage() {
         updateCount: t._count.updates,
       }))}
       positions={positions}
-      initialJarvisMessages={jarvisMessages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        toolCalls: m.toolCalls as { tool: string; success: boolean; summary: string }[] | null,
-      }))}
+      initialJarvisSessions={jarvisSessions}
     />
   );
 }
