@@ -476,7 +476,25 @@ function CanvasInner({
       )}
 
       {selectedTask && (
-        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 360, zIndex: 20, overflowY: "auto" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            // When the Jarvis workspace is open, the canvas strip
+            // (z-[115]) sits on top of this rail's usual zIndex: 20, so a
+            // task opened from the canvas preview was rendered but
+            // invisible, docked behind the strip. Bump above it (matching
+            // the z-[120] pattern already used for panels that must clear
+            // the canvas strip) and dock against the strip's left edge
+            // instead of the viewport's right edge so the rail doesn't
+            // overlap the canvas either.
+            right: jarvisWorkspaceOpen ? "max(38%, 360px)" : 0,
+            bottom: 0,
+            width: 360,
+            zIndex: jarvisWorkspaceOpen ? 120 : 20,
+            overflowY: "auto",
+          }}
+        >
           <TaskDetailPanel
             task={selectedTask}
             updates={selectedTaskUpdates}
