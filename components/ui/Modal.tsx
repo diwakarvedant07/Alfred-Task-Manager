@@ -40,9 +40,12 @@ export default function Modal({
   // context -- it still loses to siblings like JarvisPanel (z-30) and the
   // task-detail rail (zIndex 20) at the root level, regardless of this
   // component's own z-index.
+  // z-[200]: must clear JarvisWorkspace (z-[110]) and the resized canvas
+  // strip it sits alongside when open (z-[115]) -- dialogs like
+  // NewThreadButton's are triggered from inside that resized canvas.
   return createPortal(
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-black/55 p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-black/55 p-4"
       onClick={(e) => {
         // Only the backdrop itself should close the dialog. Checking the
         // click's target (rather than stopping propagation on the card)
