@@ -106,6 +106,27 @@ describe("CardMenu", () => {
     vi.useRealTimers();
   });
 
+  it("closes when clicking outside the menu, e.g. the canvas backdrop", () => {
+    render(
+      <div>
+        <div data-testid="backdrop">Canvas backdrop</div>
+        <CardMenu
+          variant="task"
+          onRename={vi.fn()}
+          onMoveToThread={vi.fn()}
+          onLinkSecondaryThread={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      </div>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByText("Rename")).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByTestId("backdrop"));
+    expect(screen.queryByText("Rename")).not.toBeInTheDocument();
+  });
+
   it("thread variant renders a 'View catch-up' item that calls onViewCatchUp", () => {
     const onViewCatchUp = vi.fn();
     render(

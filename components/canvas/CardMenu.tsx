@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
 
 type TaskMenuProps = {
@@ -35,6 +35,21 @@ const menuItemClassName =
 export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Closes the menu on any pointer interaction outside it -- e.g. clicking
+  // the canvas backdrop behind it. Without this, the menu only ever closed
+  // via one of its own menu items, so clicking elsewhere left it open.
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
 
   function startLongPress() {
     timerRef.current = setTimeout(() => setOpen(true), LONG_PRESS_MS);
@@ -51,6 +66,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
 
   return (
     <div
+      ref={containerRef}
       data-testid="card-menu-trigger-area"
       onPointerDown={startLongPress}
       onPointerUp={cancelLongPress}

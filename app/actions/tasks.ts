@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { resolveThreadRole, canManageTasks, PermissionError } from "@/lib/permissions";
-import { computeInitialTaskOffset } from "@/components/canvas/layout";
+import { computeInitialTaskOffset, computeInitialThreadOffset } from "@/components/canvas/layout";
 
 async function requireUserId(): Promise<string> {
   const session = await auth();
@@ -22,6 +22,7 @@ async function requireTaskManageRole(threadId: string, userId: string) {
     userId,
   });
   if (!canManageTasks(role)) throw new PermissionError();
+  return thread;
 }
 
 export async function createTask(input: {
@@ -32,18 +33,26 @@ export async function createTask(input: {
   dueDate?: Date;
 }) {
   const userId = await requireUserId();
-  await requireTaskManageRole(input.primaryThreadId, userId);
+  const thread = await requireTaskManageRole(input.primaryThreadId, userId);
 
   // Give the task a non-overlapping starting position for its creator so it
   // doesn't render stacked exactly on top of the thread's other tasks (see
-  // computeInitialTaskOffset). Counting existing ACTIVE tasks and creating
-  // the task + its position together keeps this a single, simple operation;
-  // it isn't meant to guarantee collision-free placement under concurrent
-  // creates, only to make a normal "add a few tasks" flow visibly distinct.
+  // computeInitialTaskOffset), and offset the whole thread's grid so a
+  // brand new thread doesn't land on top of every other newly created
+  // thread either (see computeInitialThreadOffset). Counting existing
+  // ACTIVE tasks/threads and creating the task + its position together
+  // keeps this a single, simple operation; it isn't meant to guarantee
+  // collision-free placement under concurrent creates, only to make a
+  // normal "add a few tasks/threads" flow visibly distinct.
   return db.$transaction(async (tx) => {
-    const existingActiveCount = await tx.task.count({
-      where: { primaryThreadId: input.primaryThreadId, lifecycleStatus: "ACTIVE" },
-    });
+    const [existingActiveCount, threadIndex] = await Promise.all([
+      tx.task.count({
+        where: { primaryThreadId: input.primaryThreadId, lifecycleStatus: "ACTIVE" },
+      }),
+      tx.thread.count({
+        where: { ownerId: thread.ownerId, createdAt: { lt: thread.createdAt } },
+      }),
+    ]);
     const task = await tx.task.create({
       data: {
         primaryThreadId: input.primaryThreadId,
@@ -53,9 +62,15 @@ export async function createTask(input: {
         dueDate: input.dueDate,
       },
     });
-    const offset = computeInitialTaskOffset(existingActiveCount);
+    const taskOffset = computeInitialTaskOffset(existingActiveCount);
+    const threadOffset = computeInitialThreadOffset(threadIndex);
     await tx.taskPosition.create({
-      data: { taskId: task.id, userId, positionX: offset.x, positionY: offset.y },
+      data: {
+        taskId: task.id,
+        userId,
+        positionX: threadOffset.x + taskOffset.x,
+        positionY: threadOffset.y + taskOffset.y,
+      },
     });
     return task;
   });

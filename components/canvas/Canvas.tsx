@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ReactFlow,
@@ -8,7 +8,9 @@ import {
   Controls,
   useReactFlow,
   ReactFlowProvider,
+  applyNodeChanges,
   type Node,
+  type NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { getZoomTier } from "./zoomTier";
@@ -332,6 +334,33 @@ function CanvasInner({
     handleViewStoredCatchUp,
   ]);
 
+  // ReactFlow's `nodes` prop is "controlled" (there's no `defaultNodes`
+  // escape hatch here), which means ReactFlow only applies a drag's
+  // position updates if we hand it back through `onNodesChange` -- without
+  // this, `updateNodePositions` computes the dragged-to position and then
+  // discards it, so cards never visibly move while dragging. Local state
+  // mirrors the derived `nodes` (server truth), and `onNodesChange` folds
+  // ReactFlow's own change events (drag, selection) into it in between.
+  //
+  // The resync effect below depends on the underlying state/props
+  // (tier/threads/tasks/positions/taskEditOverrides) rather than on `nodes`
+  // itself: `nodes` is a useMemo whose inputs include callbacks closing
+  // over `router`, and `useRouter()` isn't guaranteed to return the same
+  // object across renders (this project's own test mock returns a fresh
+  // object every call) -- depending on `nodes`'s identity directly made
+  // this effect re-fire on every render, which set state every render,
+  // which triggered another render: an infinite loop that OOM'd the
+  // process. The values below only change when something real changed.
+  const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
+  useEffect(() => {
+    setLocalNodes(nodes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tier, threads, tasks, positions, taskEditOverrides]);
+
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    setLocalNodes((current) => applyNodeChanges(changes, current));
+  }, []);
+
   const handleMoveEnd = useCallback(() => {
     setTier(getZoomTier(getZoom()));
   }, [getZoom]);
@@ -455,8 +484,9 @@ function CanvasInner({
         </div>
 
         <ReactFlow
-          nodes={nodes}
+          nodes={localNodes}
           nodeTypes={nodeTypes}
+          onNodesChange={handleNodesChange}
           onMoveEnd={handleMoveEnd}
           onNodeDragStop={handleNodeDragStop}
           onNodeClick={handleNodeClick}

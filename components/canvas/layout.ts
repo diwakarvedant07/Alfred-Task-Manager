@@ -30,3 +30,26 @@ export function computeInitialTaskOffset(indexInThread: number): { x: number; y:
   const row = Math.floor(indexInThread / INITIAL_TASK_GRID_COLUMNS);
   return { x: column * INITIAL_TASK_GRID_SPACING, y: row * INITIAL_TASK_GRID_SPACING };
 }
+
+// Spacing between different threads' task grids. Wide enough that one
+// thread's full INITIAL_TASK_GRID_COLUMNS-wide grid never overlaps its
+// neighbor's.
+const INITIAL_THREAD_GRID_SPACING = 1000;
+const INITIAL_THREAD_GRID_COLUMNS = 3;
+
+/**
+ * Deterministic grid offset for a newly created thread's task positions,
+ * based on how many of the owner's other threads already existed when it
+ * was created. Without this, computeInitialTaskOffset's per-thread grid
+ * always starts at the same {0, 0} origin for every thread, so a brand new
+ * thread's first task -- and the BUBBLE-tier centroid derived from it --
+ * rendered stacked exactly on top of every other newly created thread.
+ * Callers add this to computeInitialTaskOffset's result for every task in
+ * the thread, not just its first, so the whole per-thread grid moves
+ * together.
+ */
+export function computeInitialThreadOffset(threadIndex: number): { x: number; y: number } {
+  const column = threadIndex % INITIAL_THREAD_GRID_COLUMNS;
+  const row = Math.floor(threadIndex / INITIAL_THREAD_GRID_COLUMNS);
+  return { x: column * INITIAL_THREAD_GRID_SPACING, y: row * INITIAL_THREAD_GRID_SPACING };
+}

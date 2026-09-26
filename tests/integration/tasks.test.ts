@@ -105,4 +105,25 @@ describe("task actions", () => {
     // from them) to render stacked on top of each other.
     expect(positions.some((p) => p.positionX !== 0 || p.positionY !== 0)).toBe(true);
   });
+
+  it("gives the first task of a new thread a different position than the first task of an earlier thread", async () => {
+    // Before computeInitialThreadOffset, every thread's first task started
+    // at the same {0, 0} local origin, so two different threads' bubbles
+    // (and their sole starting cards) rendered stacked on top of each
+    // other -- this is what a user sees as "every new thread I create
+    // piles up in the same spot".
+    await loginAs(ownerId);
+    const firstTaskOfThreadOne = await createTask({ primaryThreadId: threadId, title: "Thread one's first task" });
+    const firstTaskOfThreadTwo = await createTask({
+      primaryThreadId: secondThreadId,
+      title: "Thread two's first task",
+    });
+
+    const [posOne, posTwo] = await Promise.all([
+      db.taskPosition.findUniqueOrThrow({ where: { taskId_userId: { taskId: firstTaskOfThreadOne.id, userId: ownerId } } }),
+      db.taskPosition.findUniqueOrThrow({ where: { taskId_userId: { taskId: firstTaskOfThreadTwo.id, userId: ownerId } } }),
+    ]);
+
+    expect(posOne.positionX !== posTwo.positionX || posOne.positionY !== posTwo.positionY).toBe(true);
+  });
 });
