@@ -30,7 +30,10 @@ type ThreadMenuProps = {
 const LONG_PRESS_MS = 450;
 
 const menuItemClassName =
-  "block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--text,#eafcff)] hover:bg-[var(--text,#eafcff)]/10";
+  "block w-full rounded-lg px-3 py-2 text-left text-sm text-fg/85 transition-colors hover:bg-fg/[0.07] hover:text-fg";
+
+const dangerItemClassName =
+  "block w-full rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10";
 
 export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
   const [open, setOpen] = useState(false);
@@ -77,14 +80,16 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
       <button
         aria-label="More actions"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text,#eafcff)]/70 hover:bg-[var(--text,#eafcff)]/10 hover:text-[var(--text,#eafcff)]"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
       >
         <MoreVertical size={16} />
       </button>
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-1 w-48 rounded-lg border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-1 shadow-xl"
+          className="elevated absolute right-0 z-30 mt-1 w-52 origin-top-right animate-pop-in rounded-xl border border-fg/10 bg-surface p-1 font-normal"
         >
           {props.variant === "task" ? (
             <>
@@ -101,7 +106,8 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
               >
                 Link secondary thread…
               </button>
-              <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onDelete)}>
+              <div aria-hidden className="my-1 h-px bg-fg/10" />
+              <button role="menuitem" className={dangerItemClassName} onClick={() => runAndClose(props.onDelete)}>
                 Delete
               </button>
             </>
@@ -129,7 +135,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
                   <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onClose)}>
                     Close thread
                   </button>
-                  <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onDelete)}>
+                  <button role="menuitem" className={dangerItemClassName} onClick={() => runAndClose(props.onDelete)}>
                     Delete thread
                   </button>
                 </>

@@ -40,4 +40,24 @@ describe("Modal", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps focus on an autoFocus field inside the dialog instead of moving it to the card", () => {
+    render(
+      <Modal ariaLabel="Example dialog" onClose={vi.fn()}>
+        <input aria-label="Name" autoFocus />
+      </Modal>
+    );
+
+    expect(screen.getByLabelText("Name")).toHaveFocus();
+  });
+
+  it("focuses the dialog card when nothing inside it takes focus", () => {
+    render(
+      <Modal ariaLabel="Example dialog" onClose={vi.fn()}>
+        <p>Content</p>
+      </Modal>
+    );
+
+    expect(screen.getByRole("dialog", { name: "Example dialog" })).toHaveFocus();
+  });
 });

@@ -1,15 +1,30 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import Orb from "@/components/ui/Orb";
 
-export default function JarvisPanel({ onOpen }: { onOpen: () => void }) {
+// Floating launcher for the Jarvis workspace: a live "breathing" orb that
+// reads as "your AI is here", with a label that slides out on hover.
+export default function JarvisPanel({
+  onOpen,
+  shifted = false,
+}: {
+  onOpen: () => void;
+  // Moves the launcher left of the task-detail rail while that's open.
+  shifted?: boolean;
+}) {
   return (
     <button
       aria-label="Jarvis"
+      title="Ask Jarvis (J)"
       onClick={onOpen}
-      className="fixed bottom-4 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent,#38e0ff)] text-[#04121a] shadow-2xl transition-transform hover:scale-105"
+      className="glass elevated group fixed bottom-5 z-30 flex h-14 animate-pop-in items-center gap-0 overflow-hidden rounded-full pl-[9px] pr-[9px] text-fg outline-none transition-all duration-300 ease-[var(--ease-out-soft)] hover:gap-2.5 hover:pr-5 focus-visible:gap-2.5 focus-visible:pr-5 ring-1 ring-accent/25 hover:ring-accent/50 focus-visible:ring-2 focus-visible:ring-accent/60 active:scale-95"
+      style={{ right: shifted ? "calc(min(380px, 100% - 24px) + 32px)" : 20 }}
     >
-      <Sparkles size={22} />
+      <Orb state="breathing" size={36} />
+      <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 group-hover:max-w-[120px] group-hover:opacity-100 group-focus-visible:max-w-[120px] group-focus-visible:opacity-100">
+        Ask Jarvis
+        <kbd className="ml-2 rounded border border-fg/15 px-1 font-mono text-[10px] text-fg/50">J</kbd>
+      </span>
     </button>
   );
 }

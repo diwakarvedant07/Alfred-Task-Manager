@@ -10,7 +10,7 @@ function isPresetModel(value: string): boolean {
 }
 
 const fieldClassName =
-  "rounded-lg border border-[var(--text,#eafcff)]/15 bg-transparent px-2 py-1 text-sm text-[var(--text,#eafcff)] outline-none focus:border-[var(--accent,#38e0ff)]";
+  "rounded-lg border border-fg/15 bg-surface px-2 py-1 text-sm text-fg outline-none focus:border-accent";
 
 export default function ModelPicker({
   value,
@@ -33,7 +33,7 @@ export default function ModelPicker({
   const showCustomInput = preset ? customSelected : true;
 
   return (
-    <div className="flex flex-col gap-1.5 text-sm text-[var(--text,#eafcff)]">
+    <div className="flex flex-col gap-1.5 text-sm text-fg">
       <label className="flex items-center justify-between gap-2">
         AI model
         <select

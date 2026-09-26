@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import Navbar from "@/components/shell/Navbar";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+  usePathname: () => "/canvas",
+}));
 vi.mock("@/app/actions/theme", () => ({ updateThemePreference: vi.fn() }));
 vi.mock("@/app/actions/aiModel", () => ({ updatePreferredAiModel: vi.fn() }));
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
@@ -20,5 +23,10 @@ describe("Navbar", () => {
     render(<Navbar {...defaultProps} />);
     expect(screen.getByText("Arc")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument();
+  });
+
+  it("shows the current page as a breadcrumb after the app name", () => {
+    render(<Navbar {...defaultProps} />);
+    expect(screen.getByText("Canvas")).toBeInTheDocument();
   });
 });

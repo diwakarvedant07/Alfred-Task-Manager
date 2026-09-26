@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, type TextareaHTMLAttributes } from "react";
+import { useId, type Ref, type TextareaHTMLAttributes } from "react";
+import { FIELD_CLASSNAME, LABEL_CLASSNAME } from "./fieldStyles";
 
 export default function Textarea({
   label,
@@ -9,6 +10,9 @@ export default function Textarea({
   id,
   ...rest
 }: TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  // React 19 passes `ref` through as an ordinary prop; it reaches the
+  // <textarea> via the `...rest` spread below.
+  ref?: Ref<HTMLTextAreaElement>;
   label: string;
   hideLabel?: boolean;
 }) {
@@ -19,13 +23,13 @@ export default function Textarea({
     <div className="flex flex-col gap-1.5 text-sm">
       <label
         htmlFor={inputId}
-        className={hideLabel ? "sr-only" : "font-medium text-[var(--text,#eafcff)]"}
+        className={hideLabel ? "sr-only" : LABEL_CLASSNAME}
       >
         {label}
       </label>
       <textarea
         id={inputId}
-        className={`w-full rounded-lg border border-[var(--text,#eafcff)]/15 bg-[var(--panel-bg,rgba(15,25,35,0.85))] px-3 py-2 text-[var(--text,#eafcff)] placeholder:text-[var(--text,#eafcff)]/40 outline-none transition-colors focus:border-[var(--accent,#38e0ff)] disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+        className={`${FIELD_CLASSNAME} px-3 py-2.5 leading-relaxed ${className}`}
         {...rest}
       />
     </div>

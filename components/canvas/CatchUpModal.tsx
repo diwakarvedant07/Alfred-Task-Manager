@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import Button from "@/components/ui/Button";
+import Orb from "@/components/ui/Orb";
 
 export default function CatchUpModal({
   summary,
@@ -16,21 +17,27 @@ export default function CatchUpModal({
     <div
       role="dialog"
       aria-label="Catch-up"
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-[var(--bg,#0a0e14)] text-[var(--text,#eafcff)]"
+      className="fixed inset-0 z-[100] flex animate-fade-in flex-col items-center justify-center gap-6 bg-[color-mix(in_srgb,var(--bg)_88%,transparent)] px-6 text-fg backdrop-blur-xl"
     >
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         aria-label="Close"
         onClick={onClose}
-        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-[var(--text,#eafcff)]/70 hover:bg-[var(--text,#eafcff)]/10 hover:text-[var(--text,#eafcff)]"
+        className="absolute right-4 top-4 rounded-full"
       >
         <X size={18} />
-      </button>
+      </Button>
+      <Orb state={loading ? "weaving" : "breathing"} size={96} />
       {loading ? (
-        <p className="text-sm text-[var(--text,#eafcff)]/70">Catching you up…</p>
+        <p className="animate-pulse text-sm text-fg/60">Catching you up…</p>
       ) : (
-        <p className="max-w-lg text-center text-lg">{summary}</p>
+        <div key="summary" className="flex max-w-xl animate-rise flex-col items-center gap-6 text-center">
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-accent">While you were away</span>
+          <p className="text-xl leading-relaxed text-fg/90">{summary}</p>
+          <Button onClick={onClose}>Got it</Button>
+        </div>
       )}
-      {!loading && <Button onClick={onClose}>Got it</Button>}
     </div>
   );
 }

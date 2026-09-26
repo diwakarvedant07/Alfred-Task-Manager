@@ -28,7 +28,10 @@ export default function Modal({
   // (now-obscured) page behind it.
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    cardRef.current?.focus();
+    // A field inside the dialog may already have taken focus via
+    // autoFocus (child effects run first) — keep it there rather than
+    // pulling focus back to the card itself.
+    if (!cardRef.current?.contains(document.activeElement)) cardRef.current?.focus();
     return () => previouslyFocused?.focus();
   }, []);
 
@@ -45,7 +48,7 @@ export default function Modal({
   // NewThreadButton's are triggered from inside that resized canvas.
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-black/55 p-4"
+      className="fixed inset-0 z-[200] flex animate-fade-in items-center justify-center overflow-y-auto bg-black/45 p-4 backdrop-blur-sm"
       onClick={(e) => {
         // Only the backdrop itself should close the dialog. Checking the
         // click's target (rather than stopping propagation on the card)
@@ -61,7 +64,7 @@ export default function Modal({
         aria-modal="true"
         aria-label={ariaLabel}
         tabIndex={-1}
-        className="max-h-full w-full max-w-sm overflow-y-auto rounded-2xl border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-6 shadow-2xl outline-none"
+        className="elevated max-h-full w-full max-w-md animate-pop-in overflow-y-auto rounded-2xl border border-fg/10 bg-surface p-6 text-fg outline-none"
       >
         {children}
       </div>

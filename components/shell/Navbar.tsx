@@ -1,4 +1,6 @@
 import UserMenu from "./UserMenu";
+import PageTitle from "./PageTitle";
+import MobileNav from "./MobileNav";
 
 export default function Navbar({
   name,
@@ -14,9 +16,15 @@ export default function Navbar({
   preferredAiModel: string;
 }) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] px-4">
-      <span className="text-sm font-semibold tracking-wide text-[var(--text,#eafcff)]">Arc</span>
-      <UserMenu name={name} email={email} themeMode={themeMode} accentColor={accentColor} preferredAiModel={preferredAiModel} />
+    <header className="glass relative z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-x-0 border-t-0 px-4">
+      <div className="flex min-w-0 items-center gap-2 text-sm">
+        <span className="font-semibold tracking-tight text-fg">Arc</span>
+        <PageTitle />
+      </div>
+      <div className="flex items-center gap-2">
+        <MobileNav />
+        <UserMenu name={name} email={email} themeMode={themeMode} accentColor={accentColor} preferredAiModel={preferredAiModel} />
+      </div>
     </header>
   );
 }

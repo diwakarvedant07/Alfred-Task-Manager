@@ -28,19 +28,19 @@ export default function ForgotPasswordPage() {
 
   if (resetUrl) {
     return (
-      <div className="w-full max-w-sm rounded-2xl border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-8 shadow-2xl">
-        <h1 className="mb-4 text-2xl font-semibold text-[var(--text,#eafcff)]">Check your email</h1>
-        <p className="text-sm text-[var(--text,#eafcff)]/70">
+      <div className="elevated w-full max-w-sm animate-rise rounded-3xl border border-fg/10 bg-[color-mix(in_srgb,var(--surface)_85%,transparent)] p-8 backdrop-blur-xl [animation-delay:80ms]">
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight text-fg">Check your email</h1>
+        <p className="text-sm text-fg/65">
           If an account exists for that email, a password reset link has been generated.
         </p>
-        <div className="mt-4 rounded-lg border border-[var(--accent,#38e0ff)]/30 bg-[var(--accent,#38e0ff)]/10 p-3 text-sm text-[var(--text,#eafcff)]">
+        <div className="mt-4 rounded-lg border border-accent/30 bg-accent/10 p-3 text-sm text-fg">
           <p className="mb-1 font-medium">Dev mode — no email provider is configured:</p>
-          <Link href={resetUrl} className="break-all text-[var(--accent,#38e0ff)] underline">
+          <Link href={resetUrl} className="break-all text-accent underline">
             {resetUrl}
           </Link>
         </div>
-        <p className="mt-6 text-center text-sm text-[var(--text,#eafcff)]/60">
-          <Link href="/login" className="text-[var(--accent,#38e0ff)] hover:underline">
+        <p className="mt-6 text-center text-sm text-fg/55">
+          <Link href="/login" className="font-medium text-accent hover:underline">
             Back to log in
           </Link>
         </p>
@@ -49,9 +49,9 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-8 shadow-2xl">
-      <h1 className="mb-2 text-2xl font-semibold text-[var(--text,#eafcff)]">Forgot password</h1>
-      <p className="mb-6 text-sm text-[var(--text,#eafcff)]/60">
+    <div className="elevated w-full max-w-sm animate-rise rounded-3xl border border-fg/10 bg-[color-mix(in_srgb,var(--surface)_85%,transparent)] p-8 backdrop-blur-xl [animation-delay:80ms]">
+      <h1 className="mb-2 text-2xl font-semibold tracking-tight text-fg">Forgot password</h1>
+      <p className="mb-6 text-sm text-fg/55">
         Enter your email and we&apos;ll generate a reset link.
       </p>
       <form action={handleSubmit} data-testid="forgot-password-form" className="flex flex-col gap-4">
@@ -61,8 +61,8 @@ export default function ForgotPasswordPage() {
         </Button>
         {error && <FormAlert>{error}</FormAlert>}
       </form>
-      <p className="mt-6 text-center text-sm text-[var(--text,#eafcff)]/60">
-        <Link href="/login" className="text-[var(--accent,#38e0ff)] hover:underline">
+      <p className="mt-6 text-center text-sm text-fg/55">
+        <Link href="/login" className="font-medium text-accent hover:underline">
           Back to log in
         </Link>
       </p>

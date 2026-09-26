@@ -19,9 +19,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-full flex-1">
+    <div className="flex h-full min-h-0 flex-1">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Navbar
           name={user.name}
           email={user.email}
@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           accentColor={user.accentColor}
           preferredAiModel={user.preferredAiModel}
         />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="relative flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   );

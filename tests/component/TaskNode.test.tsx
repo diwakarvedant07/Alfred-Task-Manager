@@ -17,7 +17,7 @@ describe("TaskNode", () => {
     expect(screen.getByText("Draft exec summary")).toBeInTheDocument();
     expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getByText("High")).toBeInTheDocument();
-    expect(screen.getByText("💬 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("3 updates")).toHaveTextContent("3");
   });
 
   it("shows an AI badge when the priority is AI-suggested", () => {

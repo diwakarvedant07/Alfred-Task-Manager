@@ -1,39 +1,176 @@
 @import "tailwindcss";
 
+/* Theme values themselves come from lib/theme.ts (themeToCssVariables),
+   rendered onto <html> by app/layout.tsx and kept live by ThemeProvider.
+   These are only fallbacks for the instant before that applies. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --accent: #38e0ff;
+  --bg: #0a0e14;
+  --panel-bg: rgba(15, 25, 35, 0.85);
+  --surface: #111a24;
+  --text: #eafcff;
+  --on-accent: #04121a;
+  --glow-opacity: 0.25;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Semantic Tailwind colors mapped onto the theme variables, so components
+   can write `text-fg/60`, `bg-surface`, `bg-accent/15` instead of
+   repeating `[var(--text,#eafcff)]` everywhere. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-canvas: var(--bg);
+  --color-fg: var(--text);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel-bg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --animate-fade-in: fade-in 180ms var(--ease-out-soft) both;
+  --animate-pop-in: pop-in 220ms var(--ease-out-soft) both;
+  --animate-slide-in-right: slide-in-right 280ms var(--ease-out-soft) both;
+  --animate-slide-up: slide-up 260ms var(--ease-out-soft) both;
+  --animate-rise: rise 320ms var(--ease-out-soft) both;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+html {
+  background: var(--bg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Faint accent aurora — enough to give the flat base some depth
+     without competing with content. */
+  background:
+    radial-gradient(1200px 600px at 85% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 60%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Frosted panel used by the navbar, floating toolbars and rails. */
+.glass {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.elevated {
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--text) 6%, transparent) inset,
+    0 12px 32px -12px rgba(0, 0, 0, 0.45),
+    0 2px 6px -2px rgba(0, 0, 0, 0.25);
+}
+[data-theme="light"] .elevated {
+  box-shadow:
+    0 12px 32px -14px rgba(15, 23, 42, 0.18),
+    0 2px 6px -2px rgba(15, 23, 42, 0.08);
 }
 
 /* Arc Reactor HUD glow: consumes --accent and --glow-opacity, both computed
    by lib/theme.ts (themeToCssVariables) and applied to the document root by
-   ThemeProvider. --glow-opacity alone was previously computed and stored
-   but never read by any rule — this is that missing consumer. color-mix()
-   blends the user's chosen accent color with the theme's glow strength
-   (stronger in dark mode, softer in light mode) into the task card's
-   shadow. */
+   ThemeProvider. color-mix() blends the user's chosen accent color with the
+   theme's glow strength (stronger in dark mode, softer in light mode) into
+   the task card's shadow. The glow only blooms on hover/selection now —
+   always-on, it smeared into a halo around every card on the canvas. */
 .task-card {
   box-shadow:
-    0 4px 14px rgba(0, 0, 0, 0.18),
-    0 0 18px color-mix(in srgb, var(--accent, #38e0ff) calc(var(--glow-opacity, 0.2) * 100%), transparent);
+    0 1px 0 color-mix(in srgb, var(--text) 5%, transparent) inset,
+    0 8px 20px -10px rgba(0, 0, 0, 0.45);
+  transition:
+    transform 220ms var(--ease-out-soft),
+    box-shadow 220ms var(--ease-out-soft),
+    border-color 220ms var(--ease-out-soft);
+}
+.react-flow__node:hover .task-card,
+.react-flow__node.selected .task-card {
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 30px -12px rgba(0, 0, 0, 0.5),
+    0 0 22px color-mix(in srgb, var(--accent) calc(var(--glow-opacity, 0.2) * 100%), transparent);
+}
+.react-flow__node.selected .task-card {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.react-flow__node.dragging .task-card {
+  transform: scale(1.02) rotate(-0.6deg);
+  cursor: grabbing;
+}
+
+/* ---- React Flow theming ---------------------------------------------- */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-background-pattern-color: color-mix(in srgb, var(--text) 16%, transparent);
+  --xy-controls-button-background-color: transparent;
+  --xy-controls-button-background-color-hover: color-mix(in srgb, var(--text) 8%, transparent);
+  --xy-controls-button-color: color-mix(in srgb, var(--text) 75%, transparent);
+  --xy-controls-button-color-hover: var(--text);
+  --xy-controls-button-border-color: transparent;
+  --xy-controls-box-shadow: none;
+  --xy-attribution-background-color: transparent;
+}
+.react-flow__controls {
+  overflow: hidden;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  backdrop-filter: blur(16px);
+}
+.react-flow__controls-button {
+  width: 30px;
+  height: 30px;
+}
+.react-flow__attribution a {
+  color: color-mix(in srgb, var(--text) 35%, transparent);
+}
+/* Nodes are clickable cards, not a node-graph editor — hide the
+   connection handles (they're kept mounted for React Flow's own bookkeeping). */
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+.react-flow__node {
+  transition: opacity 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

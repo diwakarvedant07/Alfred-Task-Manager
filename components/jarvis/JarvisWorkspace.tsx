@@ -184,7 +184,9 @@ export default function JarvisWorkspace({
     // clear catch-up/task-detail overlays) visually and interactively sat on
     // top of this pane's own right edge, silently blocking clicks on
     // anything positioned there (e.g. JarvisChat's Close button).
-    <div className="fixed inset-y-0 left-0 right-[max(38%,360px)] z-[110] flex bg-[var(--bg,#0a0e14)]">
+    // Below `md` there's no room for the side-by-side canvas preview, so the
+    // workspace goes full-width (Canvas.tsx hides the strip at that size).
+    <div className="fixed inset-y-0 left-0 right-0 z-[110] flex animate-fade-in bg-canvas md:right-[max(38%,360px)]">
       <JarvisSessionList
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -201,6 +203,7 @@ export default function JarvisWorkspace({
         onSend={handleSend}
         onRenameSession={handleRenameActiveSession}
         onClose={onClose}
+        onNewChat={handleNewChat}
       />
     </div>
   );

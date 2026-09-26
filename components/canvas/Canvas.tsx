@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ReactFlow,
   Background,
+  BackgroundVariant,
   Controls,
   useReactFlow,
   ReactFlowProvider,
@@ -14,12 +15,11 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { getZoomTier } from "./zoomTier";
-import { computeThreadCentroid } from "./layout";
+import { computeThreadCentroid, computeInitialTaskOffset, computeInitialThreadOffset } from "./layout";
 import TaskNode from "./TaskNode";
 import ThreadBubbleNode from "./ThreadBubbleNode";
-import NewThreadButton from "./NewThreadButton";
-import NewTaskButton from "./NewTaskButton";
-import ShareThreadDialog from "./ShareThreadDialog";
+import ThreadsPanel from "./ThreadsPanel";
+import Orb from "@/components/ui/Orb";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
 import CatchUpModal from "./CatchUpModal";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
@@ -73,7 +73,7 @@ function CanvasInner({
   initialTier?: "BUBBLE" | "CARD";
   initialJarvisSessions: JarvisSessionSummary[];
 }) {
-  const { getZoom } = useReactFlow();
+  const { getZoom, fitView } = useReactFlow();
   const router = useRouter();
   const [tier, setTier] = useState<"BUBBLE" | "CARD">(initialTier ?? "CARD");
   const [jarvisWorkspaceOpen, setJarvisWorkspaceOpen] = useState(false);
@@ -270,12 +270,38 @@ function CanvasInner({
     [handleLoadThreadShares]
   );
 
+  // Tasks with no saved position for this user (e.g. tasks in a thread
+  // shared with them, or created by Jarvis) used to all render at {0, 0},
+  // stacked into one unreadable pile. Lay them out on the same per-thread
+  // grid createTask uses for a new task's initial position instead. Purely
+  // a display default: nothing is persisted until the user drags a card.
+  const effectivePositions = useMemo<PositionMap>(() => {
+    const result: PositionMap = { ...positions };
+    const threadIndex = new Map(threads.map((t, i) => [t.id, i]));
+    const nextIndexInThread = new Map<string, number>();
+    for (const task of tasks) {
+      if (result[task.id]) continue;
+      const indexInThread = nextIndexInThread.get(task.primaryThreadId) ?? 0;
+      nextIndexInThread.set(task.primaryThreadId, indexInThread + 1);
+      const taskOffset = computeInitialTaskOffset(indexInThread);
+      const threadOffset = computeInitialThreadOffset(threadIndex.get(task.primaryThreadId) ?? threads.length);
+      result[task.id] = { x: threadOffset.x + taskOffset.x, y: threadOffset.y + taskOffset.y };
+    }
+    return result;
+  }, [positions, tasks, threads]);
+
+  const taskCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const task of tasks) counts[task.primaryThreadId] = (counts[task.primaryThreadId] ?? 0) + 1;
+    return counts;
+  }, [tasks]);
+
   const nodes = useMemo<Node[]>(() => {
     if (tier === "BUBBLE") {
       return threads.map((thread) => {
         const threadTaskPositions = tasks
           .filter((t) => t.primaryThreadId === thread.id)
-          .map((t) => positions[t.id] ?? { x: 0, y: 0 })
+          .map((t) => effectivePositions[t.id] ?? { x: 0, y: 0 })
           .map((p) => ({ positionX: p.x, positionY: p.y }));
         const centroid = computeThreadCentroid(threadTaskPositions);
         return {
@@ -285,6 +311,7 @@ function CanvasInner({
           data: {
             name: thread.name,
             categoryColor: thread.categoryColor,
+            taskCount: taskCounts[thread.id] ?? 0,
             onRename: () => handleRenameThread(thread.id),
             onChangeColor: () => handleChangeThreadColor(thread.id),
             onClose: () => handleCloseThread(thread.id),
@@ -298,13 +325,15 @@ function CanvasInner({
         };
       });
     }
+    const threadColorById = new Map(threads.map((t) => [t.id, t.categoryColor]));
     return tasks.map((task) => {
       const effective = withOverride(task);
       return {
         id: task.id,
         type: "task",
-        position: positions[task.id] ?? { x: 0, y: 0 },
+        position: effectivePositions[task.id] ?? { x: 0, y: 0 },
         data: {
+          threadColor: threadColorById.get(task.primaryThreadId),
           title: effective.title,
           workStatus: effective.workStatus,
           priority: effective.priority,
@@ -321,7 +350,8 @@ function CanvasInner({
     tier,
     threads,
     tasks,
-    positions,
+    effectivePositions,
+    taskCounts,
     withOverride,
     openTask,
     handleMoveToThread,
@@ -355,7 +385,7 @@ function CanvasInner({
   useEffect(() => {
     setLocalNodes(nodes);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tier, threads, tasks, positions, taskEditOverrides]);
+  }, [tier, threads, tasks, effectivePositions, taskEditOverrides]);
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     setLocalNodes((current) => applyNodeChanges(changes, current));
@@ -430,6 +460,37 @@ function CanvasInner({
     [router]
   );
 
+  // Clicking a thread in the threads panel pans/zooms the canvas to that
+  // thread's cards (switching out of the zoomed-out bubble tier first,
+  // since task nodes only exist in the CARD tier).
+  const handleFocusThread = useCallback(
+    (threadId: string) => {
+      const taskIds = tasks.filter((t) => t.primaryThreadId === threadId).map((t) => ({ id: t.id }));
+      if (taskIds.length === 0) return;
+      setTier("CARD");
+      // Give React Flow a frame to mount/measure the CARD-tier nodes.
+      window.setTimeout(() => {
+        void fitView({ nodes: taskIds, duration: 600, padding: 0.35, maxZoom: 1.1 });
+      }, 60);
+    },
+    [tasks, fitView]
+  );
+
+  // "J" opens Jarvis from anywhere on the canvas — ignored while typing in
+  // a field, with a modifier held, or while a dialog is open.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== "j" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      e.preventDefault();
+      setJarvisWorkspaceOpen(true);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const baseSelectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedTask = baseSelectedTask ? withOverride(baseSelectedTask) : null;
   const selectedTaskThread = selectedTask
@@ -454,34 +515,37 @@ function CanvasInner({
       <div
         className={
           jarvisWorkspaceOpen
-            ? "fixed inset-y-0 right-0 z-[115] w-[max(38%,360px)] border-l border-[var(--text,#eafcff)]/10"
+            ? "fixed inset-y-0 right-0 z-[115] hidden w-[max(38%,360px)] border-l border-fg/10 bg-canvas md:block"
             : "absolute inset-0"
         }
       >
-        <div style={{ position: "absolute", top: 8, left: 8, zIndex: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-          <NewThreadButton onCreate={handleCreateThread} />
-          {threads.map((thread) => (
-            <div key={thread.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span>{thread.name}</span>
-              <NewTaskButton
-                threadId={thread.id}
-                onCreate={(input) => handleCreateTask(thread.id, input)}
-              />
-              {/* Sharing (invite/list/revoke) is OWNER-only server-side
-                  (lib/permissions.ts canManageShares) — the whole dialog is
-                  hidden for an EDITOR/VIEWER rather than shown and rejected. */}
-              {thread.role === "OWNER" && (
-                <ShareThreadDialog
-                  threadId={thread.id}
-                  onShare={(email, permission) => handleShareThread(thread.id, email, permission)}
-                  onOpen={() => handleLoadThreadShares(thread.id)}
-                  shares={threadShares[thread.id] ?? []}
-                  onRevoke={(shareId) => handleRevokeThreadShare(thread.id, shareId)}
-                />
-              )}
-            </div>
-          ))}
+        <div className="absolute left-3 top-3 z-10">
+          <ThreadsPanel
+            threads={threads}
+            taskCounts={taskCounts}
+            threadShares={threadShares}
+            onCreateThread={handleCreateThread}
+            onCreateTask={handleCreateTask}
+            onShareThread={handleShareThread}
+            onLoadThreadShares={handleLoadThreadShares}
+            onRevokeThreadShare={handleRevokeThreadShare}
+            onFocusThread={handleFocusThread}
+          />
         </div>
+
+        {threads.length === 0 && (
+          <div className="pointer-events-none absolute inset-0 z-[5] flex animate-rise flex-col items-center justify-center gap-4 px-6 text-center">
+            <Orb state="shaping" size={88} />
+            <div>
+              <p className="text-lg font-semibold tracking-tight text-fg">Your canvas is empty</p>
+              <p className="mt-1 max-w-sm text-sm text-fg/55">
+                Create a thread to start adding tasks — or press{" "}
+                <kbd className="rounded-md border border-fg/15 bg-fg/[0.06] px-1.5 py-0.5 font-mono text-xs">J</kbd>{" "}
+                and ask Jarvis to set things up for you.
+              </p>
+            </div>
+          </div>
+        )}
 
         <ReactFlow
           nodes={localNodes}
@@ -491,9 +555,11 @@ function CanvasInner({
           onNodeDragStop={handleNodeDragStop}
           onNodeClick={handleNodeClick}
           fitView
+          fitViewOptions={{ padding: 0.3, maxZoom: 1.1 }}
+          proOptions={{ hideAttribution: true }}
         >
-          <Background />
-          <Controls />
+          <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
+          <Controls position="bottom-left" showInteractive={false} />
         </ReactFlow>
       </div>
 
@@ -507,9 +573,11 @@ function CanvasInner({
 
       {selectedTask && (
         <div
+          key={selectedTask.id}
+          className="animate-slide-in-right"
           style={{
             position: "absolute",
-            top: 0,
+            top: 12,
             // When the Jarvis workspace is open, the canvas strip
             // (z-[115]) sits on top of this rail's usual zIndex: 20, so a
             // task opened from the canvas preview was rendered but
@@ -518,9 +586,9 @@ function CanvasInner({
             // the canvas strip) and dock against the strip's left edge
             // instead of the viewport's right edge so the rail doesn't
             // overlap the canvas either.
-            right: jarvisWorkspaceOpen ? "max(38%, 360px)" : 0,
-            bottom: 0,
-            width: 360,
+            right: jarvisWorkspaceOpen ? "max(38%, 360px)" : 12,
+            bottom: 12,
+            width: "min(380px, calc(100% - 24px))",
             zIndex: jarvisWorkspaceOpen ? 120 : 20,
             overflowY: "auto",
           }}
@@ -570,7 +638,11 @@ function CanvasInner({
         </div>
       )}
 
-      {!jarvisWorkspaceOpen && <JarvisPanel onOpen={() => setJarvisWorkspaceOpen(true)} />}
+      {!jarvisWorkspaceOpen && (
+        // Slides left of the task-detail rail while it's open, so it no
+        // longer sits on top of the rail's "Post update" button.
+        <JarvisPanel onOpen={() => setJarvisWorkspaceOpen(true)} shifted={selectedTask !== null} />
+      )}
       {jarvisWorkspaceOpen && (
         <JarvisWorkspace initialSessions={initialJarvisSessions} onClose={() => setJarvisWorkspaceOpen(false)} />
       )}
@@ -590,7 +662,9 @@ export default function Canvas(props: {
   initialJarvisSessions: JarvisSessionSummary[];
 }) {
   return (
-    <div style={{ width: "100%", height: "100vh", background: "var(--bg)", overflow: "hidden" }}>
+    // Fills <main> (below the navbar) rather than 100vh, which overflowed
+    // the page by the navbar's height and pushed the zoom controls offscreen.
+    <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
       <ReactFlowProvider>
         <CanvasInner {...props} />
       </ReactFlowProvider>

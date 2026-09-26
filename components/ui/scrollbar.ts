@@ -1,10 +1,9 @@
 // Tailwind v4 arbitrary-variant syntax -- no plugin needed. Firefox reads
 // the two `scrollbar-*` properties; Chrome/Edge/Safari read the
-// `::-webkit-scrollbar*` pseudo-elements. Colors are hardcoded to this
-// app's single always-dark theme rather than composed through var()+opacity
-// (Tailwind's arbitrary-property syntax can't cleanly chain the two).
+// `::-webkit-scrollbar*` pseudo-elements. Colors are mixed from the theme's
+// --text variable so the thumb stays visible in both light and dark mode.
 export const THEMED_SCROLLBAR =
-  "[scrollbar-width:thin] [scrollbar-color:rgba(234,252,255,0.2)_transparent] " +
+  "[scrollbar-width:thin] [scrollbar-color:color-mix(in_srgb,var(--text)_20%,transparent)_transparent] " +
   "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent " +
-  "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(234,252,255,0.2)] " +
-  "[&::-webkit-scrollbar-thumb:hover]:bg-[rgba(234,252,255,0.35)]";
+  "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-fg/20 " +
+  "[&::-webkit-scrollbar-thumb:hover]:bg-fg/35";

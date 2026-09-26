@@ -5,19 +5,9 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { THEMED_SCROLLBAR } from "@/components/ui/scrollbar";
+import { formatRelativeTime } from "@/lib/relativeTime";
 
 export type JarvisSessionSummary = { id: string; title: string | null; updatedAt: Date };
-
-function formatRelativeTime(date: Date): string {
-  const diffMs = Date.now() - new Date(date).getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  return `${diffDay}d ago`;
-}
 
 export default function JarvisSessionList({
   sessions,
@@ -43,11 +33,12 @@ export default function JarvisSessionList({
   }
 
   return (
-    <div className="flex h-full w-64 shrink-0 flex-col gap-2 border-r border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-3">
+    <div className="glass hidden h-full w-64 shrink-0 animate-slide-up flex-col gap-3 border-y-0 border-l-0 p-3 md:flex">
       <Button onClick={onNewChat} className="w-full justify-start gap-2">
         <Plus size={16} />
         New chat
       </Button>
+      <p className="px-2 pt-1 text-[11px] font-medium uppercase tracking-wider text-fg/40">Recent</p>
       <ul aria-label="Chat sessions" className={`flex flex-1 flex-col gap-1 overflow-y-auto ${THEMED_SCROLLBAR}`}>
         {sessions.map((s) => (
           <li key={s.id}>
@@ -75,17 +66,17 @@ export default function JarvisSessionList({
                 tabIndex={0}
                 onClick={() => onSelect(s.id)}
                 onKeyDown={(e) => e.key === "Enter" && onSelect(s.id)}
-                className={`group flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
+                className={`group relative flex cursor-pointer items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent/60 ${
                   s.id === activeSessionId
-                    ? "bg-[var(--accent,#38e0ff)]/10 text-[var(--text,#eafcff)]"
-                    : "text-[var(--text,#eafcff)]/80 hover:bg-[var(--text,#eafcff)]/5"
+                    ? "bg-accent/10 text-fg"
+                    : "text-fg/75 hover:bg-fg/[0.05] hover:text-fg"
                 }`}
               >
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate">{s.title ?? "New chat"}</span>
-                  <span className="text-xs text-[var(--text,#eafcff)]/50">{formatRelativeTime(s.updatedAt)}</span>
+                  <span className="text-xs text-fg/45">{formatRelativeTime(s.updatedAt)}</span>
                 </div>
-                <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100">
+                <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                   <button
                     aria-label="Rename session"
                     onClick={(e) => {
@@ -93,7 +84,7 @@ export default function JarvisSessionList({
                       setDraftTitle(s.title ?? "");
                       setEditingId(s.id);
                     }}
-                    className="rounded p-1 hover:bg-[var(--text,#eafcff)]/10"
+                    className="rounded-md p-1 text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
                   >
                     <Pencil size={14} />
                   </button>
@@ -103,7 +94,7 @@ export default function JarvisSessionList({
                       e.stopPropagation();
                       onDelete(s.id);
                     }}
-                    className="rounded p-1 hover:bg-[var(--text,#eafcff)]/10"
+                    className="rounded-md p-1 text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
                   >
                     <Trash2 size={14} />
                   </button>

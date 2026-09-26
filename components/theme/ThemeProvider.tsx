@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { themeToCssVariables } from "@/lib/theme";
+import { applyThemeToDocument } from "@/lib/applyTheme";
 
 export default function ThemeProvider({
   themeMode,
@@ -13,10 +13,7 @@ export default function ThemeProvider({
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    const vars = themeToCssVariables(themeMode, accentColor);
-    for (const [key, value] of Object.entries(vars)) {
-      document.documentElement.style.setProperty(key, value);
-    }
+    applyThemeToDocument(themeMode, accentColor);
   }, [themeMode, accentColor]);
 
   return <>{children}</>;
