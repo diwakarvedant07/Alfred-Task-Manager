@@ -11,6 +11,7 @@ import ModelPicker from "@/components/settings/ModelPicker";
 import { applyThemeToDocument } from "@/lib/applyTheme";
 import { updateThemePreference } from "@/app/actions/theme";
 import { updatePreferredAiModel } from "@/app/actions/aiModel";
+import { BASE_PATH } from "@/lib/basePath";
 
 function initialsOf(name: string): string {
   return (
@@ -96,7 +97,7 @@ export default function UserMenu({
         />
       </div>
       <button
-        onClick={() => signOut({ redirectTo: "/login" })}
+        onClick={() => signOut({ redirectTo: `${BASE_PATH}/login` })}
         className="mt-2 flex w-full items-center gap-2 rounded-xl border-t border-fg/10 px-2 py-2.5 text-left text-sm text-fg transition-colors hover:bg-red-500/10"
       >
         <LogOut size={16} className="text-red-500" />

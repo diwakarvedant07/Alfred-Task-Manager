@@ -6,6 +6,8 @@ import ThemeProvider from "@/components/theme/ThemeProvider";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { themeToCssVariables } from "@/lib/theme";
+import { BASE_PATH } from "@/lib/basePath";
+import AuthSessionProvider from "@/components/auth/AuthSessionProvider";
 
 // Matches the Prisma User model's own defaults (prisma/schema.prisma:
 // themeMode DARK, accentColor #38e0ff) — used for logged-out routes like
@@ -61,12 +63,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href={`${BASE_PATH}/manifest.json`} />
       </head>
       <body className="flex h-full min-h-full flex-col">
-        <ThemeProvider themeMode={themeMode} accentColor={accentColor}>
-          {children}
-        </ThemeProvider>
+        <AuthSessionProvider>
+          <ThemeProvider themeMode={themeMode} accentColor={accentColor}>
+            {children}
+          </ThemeProvider>
+        </AuthSessionProvider>
         <ServiceWorkerRegistration />
       </body>
     </html>
