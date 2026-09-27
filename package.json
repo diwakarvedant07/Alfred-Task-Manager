@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev -p 3089",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start -p 3089",
     "lint": "eslint",
