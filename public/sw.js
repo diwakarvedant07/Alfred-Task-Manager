@@ -29,3 +29,13 @@ self.addEventListener("fetch", (event) => {
     )
   );
 });
+
+// Network-first: always serve fresh HTML/chunks (build hashes change on every
+// build), and only fall back to the cache when offline. Never intercept
+// non-GET requests or cross-origin traffic.
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
+
+  event.respondWith(fetch(request).catch(() => caches.match(request).then((cached) => cached ?? Response.error())));
+});

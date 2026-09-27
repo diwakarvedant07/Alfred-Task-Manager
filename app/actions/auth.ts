@@ -35,14 +35,15 @@ function hashResetToken(token: string): string {
 }
 
 export async function requestPasswordReset(email: string): Promise<{ resetUrl: string }> {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_INSECURE_RESET_LINK !== "true") {
     // This function hands the raw reset token straight back to the caller
     // instead of emailing it — a deliberate dev-mode convenience for this
     // project (no email provider is configured; see .env.example). That
     // convenience is also a full account-takeover primitive for any
     // guessable email if this ever ran in production, since anyone holding
     // the returned link can complete a reset for that account. Refuse to
-    // run in production rather than silently doing that.
+    // run in production unless explicitly opted in via
+    // ALLOW_INSECURE_RESET_LINK=true (a stopgap until email is wired up).
     throw new Error(
       "requestPasswordReset must not reveal the reset link directly in production — wire up a real email provider first."
     );

@@ -59,10 +59,22 @@ describe("requestPasswordReset", () => {
 
   it("refuses to reveal the reset link when NODE_ENV is production", async () => {
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_INSECURE_RESET_LINK", "");
     try {
       await expect(requestPasswordReset("reset@example.com")).rejects.toThrow(
         /must not reveal the reset link directly in production/
       );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("reveals the reset link in production when ALLOW_INSECURE_RESET_LINK is true", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_INSECURE_RESET_LINK", "true");
+    try {
+      const { resetUrl } = await requestPasswordReset("reset@example.com");
+      expect(resetUrl).toMatch(/^\/reset-password\?token=[0-9a-f]{64}$/);
     } finally {
       vi.unstubAllEnvs();
     }
