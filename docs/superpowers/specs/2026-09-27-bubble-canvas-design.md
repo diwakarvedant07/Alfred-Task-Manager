@@ -236,9 +236,9 @@ strip; phone: full screen).
   open/close transition.
 - **E2E (Playwright):** `catchup-flow.spec.ts` (and any other spec that
   zooms across the old tier threshold or targets `TaskNode` cards) is
-  updated to open threads by clicking bubbles instead. E2E runs hit the
-  same live DB as integration tests, so they are updated but not run until
-  a separate test database exists.
+  updated to open threads by clicking bubbles instead. E2E specs don't
+  reset the DB but do create data against the configured `DATABASE_URL`,
+  so they're only run with the user's go-ahead.
 - **Integration tests are NOT run.** They reset the live Supabase database
   via `DATABASE_URL`. A `saveThreadPosition` integration test is written
   alongside the existing ones but only run once a separate test database
