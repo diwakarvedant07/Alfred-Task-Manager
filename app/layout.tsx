@@ -32,6 +32,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0a0e14",
+  // Lets the app draw under the notch/home indicator when installed as a
+  // PWA; the navbar and bottom-anchored controls pad themselves with
+  // env(safe-area-inset-*) to stay clear of them.
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

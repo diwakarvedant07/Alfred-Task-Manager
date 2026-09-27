@@ -17,7 +17,7 @@ export default function JarvisPanel({
       aria-label="Jarvis"
       title="Ask Jarvis (J)"
       onClick={onOpen}
-      className="glass elevated group fixed bottom-5 z-30 flex h-14 animate-pop-in items-center gap-0 overflow-hidden rounded-full pl-[9px] pr-[9px] text-fg outline-none transition-all duration-300 ease-[var(--ease-out-soft)] hover:gap-2.5 hover:pr-5 focus-visible:gap-2.5 focus-visible:pr-5 ring-1 ring-accent/25 hover:ring-accent/50 focus-visible:ring-2 focus-visible:ring-accent/60 active:scale-95"
+      className="glass elevated group fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-30 flex h-14 animate-pop-in items-center gap-0 overflow-hidden rounded-full pl-[9px] pr-[9px] text-fg outline-none transition-all duration-300 ease-[var(--ease-out-soft)] hover:gap-2.5 hover:pr-5 focus-visible:gap-2.5 focus-visible:pr-5 ring-1 ring-accent/25 hover:ring-accent/50 focus-visible:ring-2 focus-visible:ring-accent/60 active:scale-95"
       style={{ right: shifted ? "calc(min(380px, 100% - 24px) + 32px)" : 20 }}
     >
       <Orb state="breathing" size={36} />

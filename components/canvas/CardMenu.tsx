@@ -82,7 +82,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-7 w-7 items-center justify-center rounded-lg text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
+        className="flex h-7 w-7 items-center justify-center rounded-lg pointer-coarse:h-9 pointer-coarse:w-9 text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
       >
         <MoreVertical size={16} />
       </button>

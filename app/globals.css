@@ -75,6 +75,22 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Phones: iOS Safari zooms the page into any focused field whose text is
+   under 16px, and never zooms back out. */
+@media (max-width: 639px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Drop the grey flash WebKit paints over tapped buttons and links — every
+   control here has its own hover/active styling. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 ::selection {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
 }

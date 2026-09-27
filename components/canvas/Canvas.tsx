@@ -14,11 +14,14 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { getZoomTier } from "./zoomTier";
+import { getZoomTier, ZOOM_TIER_THRESHOLD } from "./zoomTier";
 import { computeThreadCentroid, computeInitialTaskOffset, computeInitialThreadOffset } from "./layout";
 import TaskNode from "./TaskNode";
 import ThreadBubbleNode from "./ThreadBubbleNode";
 import ThreadsPanel from "./ThreadsPanel";
+import TaskListView from "./TaskListView";
+import { LayoutGrid, List } from "lucide-react";
+import { useIsMobile } from "@/lib/useIsMobile";
 import Orb from "@/components/ui/Orb";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
 import CatchUpModal from "./CatchUpModal";
@@ -77,6 +80,12 @@ function CanvasInner({
   const router = useRouter();
   const [tier, setTier] = useState<"BUBBLE" | "CARD">(initialTier ?? "CARD");
   const [jarvisWorkspaceOpen, setJarvisWorkspaceOpen] = useState(false);
+  // Phones get a thread-grouped list by default — dragging cards around a
+  // free-form canvas with a thumb is fiddly — with a toggle back to the
+  // canvas itself. Ignored on wider screens, which always show the canvas.
+  const isMobile = useIsMobile();
+  const [mobileView, setMobileView] = useState<"list" | "canvas">("list");
+  const showList = isMobile && mobileView === "list";
   // Shares loaded per-thread, lazily, when that thread's Share dialog is
   // opened (listThreadShares is OWNER-only server-side, so this is only
   // ever wired up for threads the caller owns — see the ShareThreadDialog
@@ -467,6 +476,7 @@ function CanvasInner({
     (threadId: string) => {
       const taskIds = tasks.filter((t) => t.primaryThreadId === threadId).map((t) => ({ id: t.id }));
       if (taskIds.length === 0) return;
+      setMobileView("canvas");
       setTier("CARD");
       // Give React Flow a frame to mount/measure the CARD-tier nodes.
       window.setTimeout(() => {
@@ -501,6 +511,52 @@ function CanvasInner({
   // controls in the panel so that's visible, not just rejected silently.
   const canEditSelectedTask = selectedTaskThread ? selectedTaskThread.role !== "VIEWER" : true;
 
+  // Shared by the desktop side rail and the phone bottom sheet below.
+  const taskDetailPanel = (task: TaskSummary) => (
+    <TaskDetailPanel
+      task={task}
+      updates={selectedTaskUpdates}
+      canEdit={canEditSelectedTask}
+      onUpdateTask={async (patch) => {
+        // Apply synchronously so the displayed value always reflects
+        // the most recently typed edit, regardless of how long the
+        // Server Action call below takes or the order responses land
+        // in. Keyed by task id and never cleared on close/re-select,
+        // so the canvas node and a reopened panel both keep showing
+        // the edit instead of falling back to the stale `tasks` prop.
+        //
+        // Mirrors app/actions/tasks.ts updateTask's own rule: a manual
+        // priority change always clears priorityIsAiSuggested. Without
+        // this, the local override only patched `priority`, so the AI
+        // badge kept showing (reading the stale
+        // priorityIsAiSuggested: true left over from the earlier
+        // suggestTaskPriority override) until the next router.refresh()
+        // reconciled it with the server's now-correct value — visibly
+        // wrong for a manual override that's supposed to clear the
+        // badge immediately.
+        const taskId = task.id;
+        const overridePatch = "priority" in patch ? { ...patch, priorityIsAiSuggested: false } : patch;
+        setTaskEditOverrides((prev) => ({
+          ...prev,
+          [taskId]: { ...prev[taskId], ...overridePatch },
+        }));
+        try {
+          await updateTask(taskId, patch);
+        } catch {
+          // The panel disables editing controls for viewers, so this
+          // only fires if the server's own permission check (the
+          // authoritative one) rejects something the client allowed —
+          // swallow rather than crash the canvas.
+        }
+      }}
+      onAddComment={async (body) => {
+        await addTaskUpdate(task.id, body);
+        setSelectedTaskUpdates(await listTaskUpdates(task.id));
+      }}
+      onClose={() => setSelectedTaskId(null)}
+    />
+  );
+
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       {/* Toolbar and ReactFlow are resized together as one unit -- when the
@@ -519,8 +575,61 @@ function CanvasInner({
             : "absolute inset-0"
         }
       >
-        <div className="absolute left-3 top-3 z-10">
+        {isMobile && !jarvisWorkspaceOpen && (
+          <div
+            role="group"
+            aria-label="View"
+            className="glass elevated absolute left-1/2 top-3 z-20 flex -translate-x-1/2 gap-0.5 rounded-full p-1"
+          >
+            {(
+              [
+                { value: "list", label: "List", icon: List },
+                { value: "canvas", label: "Canvas", icon: LayoutGrid },
+              ] as const
+            ).map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={mobileView === value}
+                onClick={() => setMobileView(value)}
+                className={`flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors ${
+                  mobileView === value ? "bg-accent/15 text-accent" : "text-fg/60"
+                }`}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showList && (
+          <TaskListView
+            threads={threads}
+            tasks={tasks.map(withOverride)}
+            threadShares={threadShares}
+            selectedTaskId={selectedTaskId}
+            onOpenTask={openTask}
+            onCreateThread={handleCreateThread}
+            onCreateTask={handleCreateTask}
+            onShareThread={handleShareThread}
+            onLoadThreadShares={handleLoadThreadShares}
+            onRevokeThreadShare={handleRevokeThreadShare}
+            onMoveToThread={handleMoveToThread}
+            onLinkSecondaryThread={handleLinkSecondaryThread}
+            onDeleteTask={handleDeleteTask}
+            onRenameThread={handleRenameThread}
+            onChangeThreadColor={handleChangeThreadColor}
+            onCloseThread={handleCloseThread}
+            onDeleteThread={handleDeleteThread}
+            onViewCatchUp={handleViewStoredCatchUp}
+          />
+        )}
+
+        <div className={`absolute left-3 z-10 ${isMobile ? "top-16" : "top-3"} ${showList ? "hidden" : ""}`}>
           <ThreadsPanel
+            key={isMobile ? "mobile" : "desktop"}
+            defaultCollapsed={isMobile}
             threads={threads}
             taskCounts={taskCounts}
             threadShares={threadShares}
@@ -533,34 +642,49 @@ function CanvasInner({
           />
         </div>
 
-        {threads.length === 0 && (
+        {threads.length === 0 && !showList && (
           <div className="pointer-events-none absolute inset-0 z-[5] flex animate-rise flex-col items-center justify-center gap-4 px-6 text-center">
             <Orb state="shaping" size={88} />
             <div>
               <p className="text-lg font-semibold tracking-tight text-fg">Your canvas is empty</p>
               <p className="mt-1 max-w-sm text-sm text-fg/55">
-                Create a thread to start adding tasks — or press{" "}
-                <kbd className="rounded-md border border-fg/15 bg-fg/[0.06] px-1.5 py-0.5 font-mono text-xs">J</kbd>{" "}
+                Create a thread to start adding tasks — or{" "}
+                {isMobile ? (
+                  "tap the orb"
+                ) : (
+                  <>
+                    press{" "}
+                    <kbd className="rounded-md border border-fg/15 bg-fg/[0.06] px-1.5 py-0.5 font-mono text-xs">J</kbd>
+                  </>
+                )}{" "}
                 and ask Jarvis to set things up for you.
               </p>
             </div>
           </div>
         )}
 
-        <ReactFlow
-          nodes={localNodes}
-          nodeTypes={nodeTypes}
-          onNodesChange={handleNodesChange}
-          onMoveEnd={handleMoveEnd}
-          onNodeDragStop={handleNodeDragStop}
-          onNodeClick={handleNodeClick}
-          fitView
-          fitViewOptions={{ padding: 0.3, maxZoom: 1.1 }}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
-          <Controls position="bottom-left" showInteractive={false} />
-        </ReactFlow>
+        {/* Unmounted (not just hidden) in the phone list view: React Flow
+            can't measure nodes inside a display:none box, so switching back
+            would leave fitView working from zero-size nodes. */}
+        {!showList && (
+          <ReactFlow
+            nodes={localNodes}
+            nodeTypes={nodeTypes}
+            onNodesChange={handleNodesChange}
+            onMoveEnd={handleMoveEnd}
+            onNodeDragStop={handleNodeDragStop}
+            onNodeClick={handleNodeClick}
+            fitView
+            // A phone-width fit usually lands below the card tier, where
+            // the thread bubbles pile on top of each other — start phones
+            // at readable cards instead and let them pan.
+            fitViewOptions={{ padding: 0.3, maxZoom: 1.1, minZoom: isMobile ? ZOOM_TIER_THRESHOLD : undefined }}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
+            <Controls position="bottom-left" showInteractive={false} />
+          </ReactFlow>
+        )}
       </div>
 
       {catchUp && (
@@ -571,7 +695,23 @@ function CanvasInner({
         />
       )}
 
-      {selectedTask && (
+      {selectedTask && isMobile && (
+        // Phones: a bottom sheet over a dimmed backdrop instead of the
+        // side rail, which would otherwise cover the whole screen edge to
+        // edge with no visible way back to the list behind it.
+        <div
+          className="fixed inset-0 z-[130] flex animate-fade-in flex-col bg-black/45 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedTaskId(null);
+          }}
+        >
+          <div key={selectedTask.id} className="mt-auto h-[92dvh] animate-slide-up">
+            {taskDetailPanel(selectedTask)}
+          </div>
+        </div>
+      )}
+
+      {selectedTask && !isMobile && (
         <div
           key={selectedTask.id}
           className="animate-slide-in-right"
@@ -593,55 +733,14 @@ function CanvasInner({
             overflowY: "auto",
           }}
         >
-          <TaskDetailPanel
-            task={selectedTask}
-            updates={selectedTaskUpdates}
-            canEdit={canEditSelectedTask}
-            onUpdateTask={async (patch) => {
-              // Apply synchronously so the displayed value always reflects
-              // the most recently typed edit, regardless of how long the
-              // Server Action call below takes or the order responses land
-              // in. Keyed by task id and never cleared on close/re-select,
-              // so the canvas node and a reopened panel both keep showing
-              // the edit instead of falling back to the stale `tasks` prop.
-              //
-              // Mirrors app/actions/tasks.ts updateTask's own rule: a manual
-              // priority change always clears priorityIsAiSuggested. Without
-              // this, the local override only patched `priority`, so the AI
-              // badge kept showing (reading the stale
-              // priorityIsAiSuggested: true left over from the earlier
-              // suggestTaskPriority override) until the next router.refresh()
-              // reconciled it with the server's now-correct value — visibly
-              // wrong for a manual override that's supposed to clear the
-              // badge immediately.
-              const taskId = selectedTask.id;
-              const overridePatch = "priority" in patch ? { ...patch, priorityIsAiSuggested: false } : patch;
-              setTaskEditOverrides((prev) => ({
-                ...prev,
-                [taskId]: { ...prev[taskId], ...overridePatch },
-              }));
-              try {
-                await updateTask(taskId, patch);
-              } catch {
-                // The panel disables editing controls for viewers, so this
-                // only fires if the server's own permission check (the
-                // authoritative one) rejects something the client allowed —
-                // swallow rather than crash the canvas.
-              }
-            }}
-            onAddComment={async (body) => {
-              await addTaskUpdate(selectedTask.id, body);
-              setSelectedTaskUpdates(await listTaskUpdates(selectedTask.id));
-            }}
-            onClose={() => setSelectedTaskId(null)}
-          />
+          {taskDetailPanel(selectedTask)}
         </div>
       )}
 
       {!jarvisWorkspaceOpen && (
         // Slides left of the task-detail rail while it's open, so it no
         // longer sits on top of the rail's "Post update" button.
-        <JarvisPanel onOpen={() => setJarvisWorkspaceOpen(true)} shifted={selectedTask !== null} />
+        <JarvisPanel onOpen={() => setJarvisWorkspaceOpen(true)} shifted={selectedTask !== null && !isMobile} />
       )}
       {jarvisWorkspaceOpen && (
         <JarvisWorkspace initialSessions={initialJarvisSessions} onClose={() => setJarvisWorkspaceOpen(false)} />
