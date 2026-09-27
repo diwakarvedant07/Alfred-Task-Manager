@@ -1,26 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Controls,
+  ControlButton,
   useReactFlow,
+  useStoreApi,
   ReactFlowProvider,
   applyNodeChanges,
   type Node,
   type NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { getZoomTier, ZOOM_TIER_THRESHOLD } from "./zoomTier";
-import { computeThreadCentroid, computeInitialTaskOffset, computeInitialThreadOffset } from "./layout";
-import TaskNode from "./TaskNode";
-import ThreadBubbleNode from "./ThreadBubbleNode";
+import { useReducedMotion } from "framer-motion";
+import ThreadClusterNode, { type ThreadClusterData } from "./ThreadClusterNode";
+import { clusterLayout, type ClusterLayout } from "./clusterLayout";
+import { COLLAPSED_DIAMETER, cameraZoomForCluster, clustersOverlap, defaultThreadPosition } from "./threadLayout";
+import { useOpenThreads } from "./useOpenThreads";
 import ThreadsPanel from "./ThreadsPanel";
 import TaskListView from "./TaskListView";
-import { LayoutGrid, List } from "lucide-react";
+import { LayoutGrid, List, Maximize, Minus, Plus } from "lucide-react";
 import { useIsMobile } from "@/lib/useIsMobile";
 import Orb from "@/components/ui/Orb";
 import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
@@ -28,7 +31,7 @@ import CatchUpModal from "./CatchUpModal";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
 import JarvisWorkspace from "@/components/jarvis/JarvisWorkspace";
 import type { JarvisSessionSummary } from "@/components/jarvis/JarvisSessionList";
-import { saveTaskPosition } from "@/app/actions/taskPositions";
+import { saveThreadPosition } from "@/app/actions/threadPositions";
 import {
   createThread,
   renameThread,
@@ -42,7 +45,7 @@ import { addTaskUpdate, listTaskUpdates } from "@/app/actions/taskUpdates";
 import { openThreadAndMaybeGetCatchUp, getStoredThreadSummary } from "@/app/actions/threadCatchUp";
 import { suggestTaskPriority } from "@/app/actions/taskPriority";
 
-const nodeTypes = { task: TaskNode, threadBubble: ThreadBubbleNode };
+const nodeTypes = { threadCluster: ThreadClusterNode };
 
 type ThreadSummary = { id: string; name: string; categoryColor: string; role: "OWNER" | "EDITOR" | "VIEWER" };
 type ThreadShareItem = {
@@ -66,25 +69,35 @@ type PositionMap = Record<string, { x: number; y: number }>;
 function CanvasInner({
   threads,
   tasks,
-  positions,
-  initialTier,
+  threadPositions,
+  userId,
   initialJarvisSessions,
 }: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
-  positions: PositionMap;
-  initialTier?: "BUBBLE" | "CARD";
+  threadPositions: PositionMap;
+  userId: string;
   initialJarvisSessions: JarvisSessionSummary[];
 }) {
-  const { getZoom, fitView } = useReactFlow();
+  const { getZoom, setCenter, fitView, zoomIn, zoomOut } = useReactFlow();
+  const store = useStoreApi();
+  const reducedMotion = useReducedMotion();
   const router = useRouter();
-  const [tier, setTier] = useState<"BUBBLE" | "CARD">(initialTier ?? "CARD");
+  const openThreads = useOpenThreads(userId);
+  const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
+  // Positions of threads dragged this session. Overlaid on the server's
+  // threadPositions, which don't refresh after a drag, so re-deriving the
+  // nodes (opening a thread, hovering) never snaps a thread back.
+  const [draggedPositions, setDraggedPositions] = useState<PositionMap>({});
+  // Timestamp of the last drag end, used to ignore the click that some
+  // browsers deliver at the end of a drag.
+  const lastDragEndRef = useRef(0);
   const [jarvisWorkspaceOpen, setJarvisWorkspaceOpen] = useState(false);
-  // Phones get a thread-grouped list by default — dragging cards around a
-  // free-form canvas with a thumb is fiddly — with a toggle back to the
-  // canvas itself. Ignored on wider screens, which always show the canvas.
+  // Phones default to the bubble canvas (tap-friendly, no dragging needed),
+  // with a toggle to the thread-grouped list. Ignored on wider screens,
+  // which always show the canvas.
   const isMobile = useIsMobile();
-  const [mobileView, setMobileView] = useState<"list" | "canvas">("list");
+  const [mobileView, setMobileView] = useState<"list" | "canvas">("canvas");
   const showList = isMobile && mobileView === "list";
   // Shares loaded per-thread, lazily, when that thread's Share dialog is
   // opened (listThreadShares is OWNER-only server-side, so this is only
@@ -279,159 +292,73 @@ function CanvasInner({
     [handleLoadThreadShares]
   );
 
-  // Tasks with no saved position for this user (e.g. tasks in a thread
-  // shared with them, or created by Jarvis) used to all render at {0, 0},
-  // stacked into one unreadable pile. Lay them out on the same per-thread
-  // grid createTask uses for a new task's initial position instead. Purely
-  // a display default: nothing is persisted until the user drags a card.
-  const effectivePositions = useMemo<PositionMap>(() => {
-    const result: PositionMap = { ...positions };
-    const threadIndex = new Map(threads.map((t, i) => [t.id, i]));
-    const nextIndexInThread = new Map<string, number>();
-    for (const task of tasks) {
-      if (result[task.id]) continue;
-      const indexInThread = nextIndexInThread.get(task.primaryThreadId) ?? 0;
-      nextIndexInThread.set(task.primaryThreadId, indexInThread + 1);
-      const taskOffset = computeInitialTaskOffset(indexInThread);
-      const threadOffset = computeInitialThreadOffset(threadIndex.get(task.primaryThreadId) ?? threads.length);
-      result[task.id] = { x: threadOffset.x + taskOffset.x, y: threadOffset.y + taskOffset.y };
-    }
-    return result;
-  }, [positions, tasks, threads]);
-
   const taskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const task of tasks) counts[task.primaryThreadId] = (counts[task.primaryThreadId] ?? 0) + 1;
     return counts;
   }, [tasks]);
 
-  const nodes = useMemo<Node[]>(() => {
-    if (tier === "BUBBLE") {
-      return threads.map((thread) => {
-        const threadTaskPositions = tasks
-          .filter((t) => t.primaryThreadId === thread.id)
-          .map((t) => effectivePositions[t.id] ?? { x: 0, y: 0 })
-          .map((p) => ({ positionX: p.x, positionY: p.y }));
-        const centroid = computeThreadCentroid(threadTaskPositions);
-        return {
-          id: thread.id,
-          type: "threadBubble",
-          position: centroid,
-          data: {
-            name: thread.name,
-            categoryColor: thread.categoryColor,
-            taskCount: taskCounts[thread.id] ?? 0,
-            onRename: () => handleRenameThread(thread.id),
-            onChangeColor: () => handleChangeThreadColor(thread.id),
-            onClose: () => handleCloseThread(thread.id),
-            onDelete: () => handleDeleteThread(thread.id),
-            onViewCatchUp: () => handleViewStoredCatchUp(thread.id),
-            // lib/permissions.ts: canManageThreadMeta is OWNER+EDITOR,
-            // canCloseOrDeleteThread is OWNER only.
-            canEditMeta: thread.role === "OWNER" || thread.role === "EDITOR",
-            canCloseOrDelete: thread.role === "OWNER",
-          },
-        };
-      });
-    }
-    const threadColorById = new Map(threads.map((t) => [t.id, t.categoryColor]));
-    return tasks.map((task) => {
-      const effective = withOverride(task);
-      return {
-        id: task.id,
-        type: "task",
-        position: effectivePositions[task.id] ?? { x: 0, y: 0 },
-        data: {
-          threadColor: threadColorById.get(task.primaryThreadId),
-          title: effective.title,
-          workStatus: effective.workStatus,
-          priority: effective.priority,
-          priorityIsAiSuggested: effective.priorityIsAiSuggested,
-          updateCount: effective.updateCount,
-          onRename: () => openTask(task.id),
-          onMoveToThread: () => handleMoveToThread(task.id),
-          onLinkSecondaryThread: () => handleLinkSecondaryThread(task.id),
-          onDelete: () => handleDeleteTask(task.id),
-        },
-      };
+  const effectiveThreadPositions = useMemo<PositionMap>(() => {
+    const result: PositionMap = {};
+    threads.forEach((thread, index) => {
+      result[thread.id] = draggedPositions[thread.id] ?? threadPositions[thread.id] ?? defaultThreadPosition(index);
     });
-  }, [
-    tier,
-    threads,
-    tasks,
-    effectivePositions,
-    taskCounts,
-    withOverride,
-    openTask,
-    handleMoveToThread,
-    handleLinkSecondaryThread,
-    handleDeleteTask,
-    handleRenameThread,
-    handleChangeThreadColor,
-    handleCloseThread,
-    handleDeleteThread,
-    handleViewStoredCatchUp,
-  ]);
+    return result;
+  }, [threads, threadPositions, draggedPositions]);
 
-  // ReactFlow's `nodes` prop is "controlled" (there's no `defaultNodes`
-  // escape hatch here), which means ReactFlow only applies a drag's
-  // position updates if we hand it back through `onNodesChange` -- without
-  // this, `updateNodePositions` computes the dragged-to position and then
-  // discards it, so cards never visibly move while dragging. Local state
-  // mirrors the derived `nodes` (server truth), and `onNodesChange` folds
-  // ReactFlow's own change events (drag, selection) into it in between.
-  //
-  // The resync effect below depends on the underlying state/props
-  // (tier/threads/tasks/positions/taskEditOverrides) rather than on `nodes`
-  // itself: `nodes` is a useMemo whose inputs include callbacks closing
-  // over `router`, and `useRouter()` isn't guaranteed to return the same
-  // object across renders (this project's own test mock returns a fresh
-  // object every call) -- depending on `nodes`'s identity directly made
-  // this effect re-fire on every render, which set state every render,
-  // which triggered another render: an infinite loop that OOM'd the
-  // process. The values below only change when something real changed.
-  const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
-  useEffect(() => {
-    setLocalNodes(nodes);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tier, threads, tasks, effectivePositions, taskEditOverrides]);
-
-  const handleNodesChange = useCallback((changes: NodeChange[]) => {
-    setLocalNodes((current) => applyNodeChanges(changes, current));
-  }, []);
-
-  const handleMoveEnd = useCallback(() => {
-    setTier(getZoomTier(getZoom()));
-  }, [getZoom]);
-
-  const handleNodeDragStop = useCallback((_: unknown, node: Node) => {
-    if (node.type === "task") {
-      void saveTaskPosition(node.id, node.position.x, node.position.y);
+  const tasksByThread = useMemo(() => {
+    const map = new Map<string, TaskSummary[]>();
+    for (const task of tasks) {
+      const list = map.get(task.primaryThreadId) ?? [];
+      list.push(withOverride(task));
+      map.set(task.primaryThreadId, list);
     }
-  }, []);
+    return map;
+  }, [tasks, withOverride]);
 
-  const handleNodeClick = useCallback(
-    async (_: unknown, node: Node) => {
-      if (node.type === "threadBubble") {
-        void handleThreadBubbleClick(node.id);
-        return;
-      }
-      if (node.type !== "task") return;
-      await openTask(node.id);
+  const layouts = useMemo(() => {
+    const map = new Map<string, ClusterLayout>();
+    for (const thread of threads) {
+      map.set(
+        thread.id,
+        clusterLayout(tasksByThread.get(thread.id) ?? [], { includeAddSlot: thread.role !== "VIEWER" })
+      );
+    }
+    return map;
+  }, [threads, tasksByThread]);
+
+  // Glides the camera to frame a thread's open cluster (pans only if it
+  // already fits at a readable zoom).
+  const focusCluster = useCallback(
+    (threadId: string) => {
+      const position = effectiveThreadPositions[threadId];
+      const layout = layouts.get(threadId);
+      if (!position || !layout) return;
+      const { width, height } = store.getState();
+      const zoom = cameraZoomForCluster(getZoom(), { width, height }, layout.radius, isMobile ? 12 : 48);
+      void setCenter(position.x, position.y, { zoom, duration: reducedMotion ? 0 : 500 });
     },
-    [openTask, handleThreadBubbleClick]
+    [effectiveThreadPositions, layouts, store, getZoom, setCenter, isMobile, reducedMotion]
   );
 
-  const handleCreateThread = useCallback(
-    async (input: { name: string; categoryColor: string }) => {
-      await createThread(input);
-      router.refresh();
+  const handleToggleThread = useCallback(
+    (threadId: string) => {
+      if (Date.now() - lastDragEndRef.current < 200) return;
+      if (openThreads.isOpen(threadId)) {
+        openThreads.close(threadId);
+        return;
+      }
+      openThreads.open(threadId);
+      focusCluster(threadId);
+      void handleThreadBubbleClick(threadId);
     },
-    [router]
+    [openThreads, focusCluster, handleThreadBubbleClick]
   );
 
   const handleCreateTask = useCallback(
     async (threadId: string, input: { title: string; description?: string; dueDate?: Date }) => {
+      // Open the thread so the new task is visible as it pops into the cluster.
+      openThreads.open(threadId);
       const created = await createTask({ primaryThreadId: threadId, ...input });
       router.refresh();
 
@@ -458,6 +385,121 @@ function CanvasInner({
           // silent by design, the task keeps its default MEDIUM priority.
         });
     },
+    [router, openThreads]
+  );
+
+  const nodes = useMemo<Node[]>(() => {
+    const hoveredOpen = hoveredThreadId && openThreads.isOpen(hoveredThreadId) ? hoveredThreadId : null;
+    const hoveredCircle = hoveredOpen
+      ? { ...effectiveThreadPositions[hoveredOpen], r: (layouts.get(hoveredOpen)?.radius ?? 0) + 16 }
+      : null;
+    return threads.map((thread) => {
+      const open = openThreads.isOpen(thread.id);
+      const position = effectiveThreadPositions[thread.id];
+      const dimmed =
+        !open && hoveredCircle !== null && clustersOverlap(hoveredCircle, { ...position, r: COLLAPSED_DIAMETER / 2 });
+      const data: ThreadClusterData = {
+        thread: { id: thread.id, name: thread.name, categoryColor: thread.categoryColor },
+        tasks: tasksByThread.get(thread.id) ?? [],
+        layout: layouts.get(thread.id)!,
+        open,
+        dimmed,
+        // lib/permissions.ts: canManageThreadMeta is OWNER+EDITOR,
+        // canCloseOrDeleteThread is OWNER only, canManageTasks OWNER+EDITOR.
+        canEditMeta: thread.role === "OWNER" || thread.role === "EDITOR",
+        canCloseOrDelete: thread.role === "OWNER",
+        canEditTasks: thread.role !== "VIEWER",
+        onToggle: () => handleToggleThread(thread.id),
+        onHoverChange: (hovered) =>
+          setHoveredThreadId((current) => (hovered ? thread.id : current === thread.id ? null : current)),
+        onOpenTask: (taskId) => void openTask(taskId),
+        onRenameTask: (taskId) => void openTask(taskId),
+        onMoveTask: (taskId) => void handleMoveToThread(taskId),
+        onLinkTask: (taskId) => void handleLinkSecondaryThread(taskId),
+        onDeleteTask: (taskId) => void handleDeleteTask(taskId),
+        onRename: () => void handleRenameThread(thread.id),
+        onChangeColor: () => void handleChangeThreadColor(thread.id),
+        onCloseThread: () => void handleCloseThread(thread.id),
+        onDeleteThread: () => void handleDeleteThread(thread.id),
+        onViewCatchUp: () => void handleViewStoredCatchUp(thread.id),
+        onCreateTask: (input) => void handleCreateTask(thread.id, input),
+      };
+      return {
+        id: thread.id,
+        type: "threadCluster",
+        position,
+        zIndex: open ? (hoveredThreadId === thread.id ? 20 : 10) : 0,
+        data,
+      };
+    });
+  }, [
+    threads,
+    tasksByThread,
+    layouts,
+    effectiveThreadPositions,
+    openThreads,
+    hoveredThreadId,
+    handleToggleThread,
+    openTask,
+    handleMoveToThread,
+    handleLinkSecondaryThread,
+    handleDeleteTask,
+    handleRenameThread,
+    handleChangeThreadColor,
+    handleCloseThread,
+    handleDeleteThread,
+    handleViewStoredCatchUp,
+    handleCreateTask,
+  ]);
+
+  // ReactFlow's `nodes` prop is "controlled" (there's no `defaultNodes`
+  // escape hatch here), which means ReactFlow only applies a drag's
+  // position updates if we hand it back through `onNodesChange` -- without
+  // this, `updateNodePositions` computes the dragged-to position and then
+  // discards it, so cards never visibly move while dragging. Local state
+  // mirrors the derived `nodes` (server truth), and `onNodesChange` folds
+  // ReactFlow's own change events (drag, selection) into it in between.
+  //
+  // The resync effect below depends on the underlying state/props
+  // (threads/tasks/positions/open threads/hover) rather than on `nodes`
+  // itself: `nodes` is a useMemo whose inputs include callbacks closing
+  // over `router`, and `useRouter()` isn't guaranteed to return the same
+  // object across renders (this project's own test mock returns a fresh
+  // object every call) -- depending on `nodes`'s identity directly made
+  // this effect re-fire on every render, which set state every render,
+  // which triggered another render: an infinite loop that OOM'd the
+  // process. The values below only change when something real changed.
+  const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
+  useEffect(() => {
+    // Keep whatever position React Flow has for a node mid-drag; otherwise
+    // a re-derive (hover, open) during a drag would snap it back.
+    setLocalNodes((current) => {
+      const byId = new Map(current.map((n) => [n.id, n]));
+      return nodes.map((n) => {
+        const existing = byId.get(n.id);
+        return existing?.dragging ? { ...n, position: existing.position, dragging: true } : n;
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threads, tasks, effectiveThreadPositions, taskEditOverrides, openThreads.openIds, hoveredThreadId, layouts]);
+
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    setLocalNodes((current) => applyNodeChanges(changes, current));
+  }, []);
+
+  const handleNodeDragStop = useCallback((_: unknown, node: Node) => {
+    lastDragEndRef.current = Date.now();
+    setDraggedPositions((prev) => ({ ...prev, [node.id]: node.position }));
+    // Best effort, like task positions were: a failed save just means the
+    // thread returns to its last saved spot on the next load.
+    void saveThreadPosition(node.id, node.position.x, node.position.y).catch(() => {});
+  }, []);
+
+  const handleCreateThread = useCallback(
+    async (input: { name: string; categoryColor: string }) => {
+      await createThread(input);
+      router.refresh();
+    },
     [router]
   );
 
@@ -469,21 +511,16 @@ function CanvasInner({
     [router]
   );
 
-  // Clicking a thread in the threads panel pans/zooms the canvas to that
-  // thread's cards (switching out of the zoomed-out bubble tier first,
-  // since task nodes only exist in the CARD tier).
+  // Clicking a thread in the threads panel opens its cluster and glides
+  // the camera to it (after a frame, in case the canvas just mounted from
+  // the phone list view).
   const handleFocusThread = useCallback(
     (threadId: string) => {
-      const taskIds = tasks.filter((t) => t.primaryThreadId === threadId).map((t) => ({ id: t.id }));
-      if (taskIds.length === 0) return;
       setMobileView("canvas");
-      setTier("CARD");
-      // Give React Flow a frame to mount/measure the CARD-tier nodes.
-      window.setTimeout(() => {
-        void fitView({ nodes: taskIds, duration: 600, padding: 0.35, maxZoom: 1.1 });
-      }, 60);
+      openThreads.open(threadId);
+      window.setTimeout(() => focusCluster(threadId), 60);
     },
-    [tasks, fitView]
+    [openThreads, focusCluster]
   );
 
   // "J" opens Jarvis from anywhere on the canvas — ignored while typing in
@@ -500,6 +537,22 @@ function CanvasInner({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Esc closes the most recently opened cluster — same guards as "J", and
+  // not while Jarvis (which has its own Esc handling) is open.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape" || jarvisWorkspaceOpen) return;
+      // The target can be the document itself (no .closest) when nothing
+      // is focused.
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      openThreads.closeMostRecent();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [jarvisWorkspaceOpen, openThreads]);
 
   const baseSelectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedTask = baseSelectedTask ? withOverride(baseSelectedTask) : null;
@@ -671,18 +724,41 @@ function CanvasInner({
             nodes={localNodes}
             nodeTypes={nodeTypes}
             onNodesChange={handleNodesChange}
-            onMoveEnd={handleMoveEnd}
             onNodeDragStop={handleNodeDragStop}
-            onNodeClick={handleNodeClick}
+            // Node positions are thread centres, so a cluster grows evenly
+            // around its thread when it opens.
+            nodeOrigin={[0.5, 0.5]}
+            minZoom={0.2}
+            maxZoom={2}
             fitView
-            // A phone-width fit usually lands below the card tier, where
-            // the thread bubbles pile on top of each other — start phones
-            // at readable cards instead and let them pan.
-            fitViewOptions={{ padding: 0.3, maxZoom: 1.1, minZoom: isMobile ? ZOOM_TIER_THRESHOLD : undefined }}
+            fitViewOptions={{ padding: 0.3, maxZoom: 1.1 }}
             proOptions={{ hideAttribution: true }}
           >
             <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
-            <Controls position="bottom-left" showInteractive={false} />
+            {/* Custom buttons so zoom steps animate instead of jumping. */}
+            <Controls position="bottom-left" showZoom={false} showFitView={false} showInteractive={false}>
+              <ControlButton
+                aria-label="Zoom In"
+                title="Zoom in"
+                onClick={() => void zoomIn({ duration: reducedMotion ? 0 : 300 })}
+              >
+                <Plus />
+              </ControlButton>
+              <ControlButton
+                aria-label="Zoom Out"
+                title="Zoom out"
+                onClick={() => void zoomOut({ duration: reducedMotion ? 0 : 300 })}
+              >
+                <Minus />
+              </ControlButton>
+              <ControlButton
+                aria-label="Fit View"
+                title="Fit view"
+                onClick={() => void fitView({ padding: 0.3, maxZoom: 1.1, duration: reducedMotion ? 0 : 300 })}
+              >
+                <Maximize />
+              </ControlButton>
+            </Controls>
           </ReactFlow>
         )}
       </div>
@@ -752,12 +828,11 @@ function CanvasInner({
 export default function Canvas(props: {
   threads: ThreadSummary[];
   tasks: TaskSummary[];
-  positions: PositionMap;
-  // Seeds the initial zoom tier — primarily so tests can render straight
-  // into the BUBBLE tier (thread bubbles) without simulating a real
-  // ReactFlow zoom gesture, which jsdom can't do. Defaults to "CARD",
-  // matching the previous hardcoded initial state.
-  initialTier?: "BUBBLE" | "CARD";
+  // Per-user saved thread-bubble centres; threads without one fall back to
+  // a default grid (threadLayout.ts).
+  threadPositions: PositionMap;
+  // Scopes the remembered open/closed thread state in localStorage.
+  userId: string;
   initialJarvisSessions: JarvisSessionSummary[];
 }) {
   return (

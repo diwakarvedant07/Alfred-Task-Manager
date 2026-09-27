@@ -1,17 +1,6 @@
-export function computeThreadCentroid(
-  positions: { positionX: number; positionY: number }[]
-): { x: number; y: number } {
-  if (positions.length === 0) return { x: 0, y: 0 };
-  const sum = positions.reduce(
-    (acc, p) => ({ x: acc.x + p.positionX, y: acc.y + p.positionY }),
-    { x: 0, y: 0 }
-  );
-  return { x: sum.x / positions.length, y: sum.y / positions.length };
-}
-
 // Spacing between grid cells for a thread's initial task layout, in canvas
-// units. Wide enough that TaskNode cards (and, at the BUBBLE tier, the
-// thread centroid they feed) don't visually overlap at default zoom.
+// units. Used to seed TaskPosition rows when a task is created
+// (app/actions/tasks.ts); the bubble canvas no longer reads them.
 const INITIAL_TASK_GRID_SPACING = 220;
 const INITIAL_TASK_GRID_COLUMNS = 4;
 

@@ -21,11 +21,11 @@ export default async function CanvasPage() {
     include: { _count: { select: { updates: true } } },
   });
 
-  const taskPositions = await db.taskPosition.findMany({
-    where: { taskId: { in: tasks.map((t) => t.id) }, userId },
+  const threadPositionRows = await db.threadPosition.findMany({
+    where: { threadId: { in: threads.map((t) => t.id) }, userId },
   });
-  const positions = Object.fromEntries(
-    taskPositions.map((p) => [p.taskId, { x: p.positionX, y: p.positionY }])
+  const threadPositions = Object.fromEntries(
+    threadPositionRows.map((p) => [p.threadId, { x: p.positionX, y: p.positionY }])
   );
 
   const jarvisSessions = await db.jarvisSession.findMany({
@@ -53,7 +53,8 @@ export default async function CanvasPage() {
         dueDate: t.dueDate,
         updateCount: t._count.updates,
       }))}
-      positions={positions}
+      threadPositions={threadPositions}
+      userId={userId}
       initialJarvisSessions={jarvisSessions}
     />
   );

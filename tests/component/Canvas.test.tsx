@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
-vi.mock("@/app/actions/taskPositions", () => ({ saveTaskPosition: vi.fn() }));
+vi.mock("@/app/actions/threadPositions", () => ({ saveThreadPosition: vi.fn(async () => undefined) }));
 vi.mock("@/app/actions/threads", () => ({
   createThread: vi.fn(),
   renameThread: vi.fn(),
@@ -75,9 +75,17 @@ const task = {
   updateCount: 0,
 };
 
-const defaultThemeProps = {
-  initialJarvisSessions: [],
-};
+const ownerThread = { id: "th1", name: "Q3 Report", categoryColor: "#f2c14e", role: "OWNER" as const };
+const editorThread = { id: "th1", name: "Q3 Report", categoryColor: "#f2c14e", role: "EDITOR" as const };
+
+const defaultThemeProps = { initialJarvisSessions: [], threadPositions: {}, userId: "u1" };
+
+// React Flow keeps nodes at visibility:hidden until it measures them,
+// which never happens in jsdom, and accessible-name computation treats
+// that subtree as nameless — so bubbles inside a node are found by their
+// aria-label rather than by role + name.
+const openThreadBubble = (name = "Q3 Report") =>
+  fireEvent.click(screen.getByLabelText(new RegExp(`^${name} — .*Open thread$`)));
 
 beforeEach(() => {
   vi.mocked(listTaskUpdates).mockReset().mockResolvedValue([]);
@@ -92,7 +100,8 @@ beforeEach(() => {
   vi.mocked(deleteThread).mockReset().mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof deleteThread>>);
   vi.mocked(listThreadShares).mockReset().mockResolvedValue([]);
   vi.mocked(revokeThreadShare).mockReset().mockResolvedValue(undefined);
-  vi.mocked(openThreadAndMaybeGetCatchUp).mockReset();
+  vi.mocked(openThreadAndMaybeGetCatchUp).mockReset().mockResolvedValue({ showCatchUp: false, summary: null });
+  window.localStorage.clear();
   vi.mocked(getStoredThreadSummary).mockReset();
 });
 
@@ -109,7 +118,8 @@ describe("Canvas — task edit race condition", () => {
     }
     vi.mocked(updateTask).mockImplementation(fakeUpdateTask as unknown as typeof updateTask);
 
-    render(<Canvas threads={[]} tasks={[task]} positions={{}} {...defaultThemeProps} />);
+    render(<Canvas threads={[ownerThread]} tasks={[task]} {...defaultThemeProps} />);
+    openThreadBubble();
 
     fireEvent.click(screen.getByText("Original title"));
 
@@ -139,7 +149,8 @@ describe("Canvas — task edit race condition", () => {
       undefined as unknown as Awaited<ReturnType<typeof updateTask>>
     );
 
-    render(<Canvas threads={[]} tasks={[task]} positions={{}} {...defaultThemeProps} />);
+    render(<Canvas threads={[ownerThread]} tasks={[task]} {...defaultThemeProps} />);
+    openThreadBubble();
 
     // Open the panel and edit the title.
     fireEvent.click(screen.getByText("Original title"));
@@ -166,10 +177,7 @@ describe("Canvas — task edit race condition", () => {
   });
 });
 
-const ownerThread = { id: "th1", name: "Q3 Report", categoryColor: "#f2c14e", role: "OWNER" as const };
-const editorThread = { id: "th1", name: "Q3 Report", categoryColor: "#f2c14e", role: "EDITOR" as const };
-
-describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
+describe("Canvas — thread bubble menu", () => {
   it("renames a thread via the bubble's card menu, calling the real renameThread Server Action", async () => {
     const originalPrompt = window.prompt;
     window.prompt = vi.fn(() => "Renamed thread");
@@ -178,9 +186,8 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
@@ -200,9 +207,8 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
@@ -222,9 +228,8 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
@@ -242,9 +247,8 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
       <Canvas
         threads={[editorThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
@@ -258,11 +262,11 @@ describe("Canvas — thread bubble menu (BUBBLE tier)", () => {
 describe("Canvas — thread sharing management (Finding 2)", () => {
   it("only shows the Share control to a thread's OWNER, not an EDITOR", () => {
     const { rerender } = render(
-      <Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />
+      <Canvas threads={[ownerThread]} tasks={[]} {...defaultThemeProps} />
     );
     expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
 
-    rerender(<Canvas threads={[editorThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+    rerender(<Canvas threads={[editorThread]} tasks={[]} {...defaultThemeProps} />);
     expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument();
   });
 
@@ -271,7 +275,7 @@ describe("Canvas — thread sharing management (Finding 2)", () => {
       { id: "share1", permission: "VIEWER", sharedWithUser: { name: "Vera", email: "vera@example.com" } },
     ] as unknown as Awaited<ReturnType<typeof listThreadShares>>);
 
-    render(<Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+    render(<Canvas threads={[ownerThread]} tasks={[]} {...defaultThemeProps} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     await waitFor(() => expect(listThreadShares).toHaveBeenCalledWith("th1"));
@@ -294,9 +298,8 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
@@ -304,7 +307,7 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
     // (see the NewTaskButton row above the canvas), so target the actual
     // React Flow node — identified by its stable rf__node-<id> testid —
     // rather than ambiguous text.
-    fireEvent.click(screen.getByTestId("rf__node-th1"));
+    openThreadBubble();
 
     expect(await screen.findByText("Welcome back.")).toBeInTheDocument();
     expect(openThreadAndMaybeGetCatchUp).toHaveBeenCalledWith("th1");
@@ -320,13 +323,12 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
-    fireEvent.click(screen.getByTestId("rf__node-th1"));
+    openThreadBubble();
 
     await waitFor(() => expect(openThreadAndMaybeGetCatchUp).toHaveBeenCalledWith("th1"));
     expect(screen.queryByRole("dialog", { name: "Catch-up" })).not.toBeInTheDocument();
@@ -339,9 +341,8 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
@@ -363,13 +364,12 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
-    fireEvent.click(screen.getByTestId("rf__node-th1"));
+    openThreadBubble();
 
     await screen.findByRole("dialog", { name: "Catch-up" });
     expect(screen.queryByText("Catching you up…")).not.toBeInTheDocument();
@@ -385,9 +385,8 @@ describe("Canvas — thread catch-up (Task 11 wiring)", () => {
       <Canvas
         threads={[ownerThread]}
         tasks={[]}
-        positions={{}}
+       
         {...defaultThemeProps}
-        initialTier="BUBBLE"
       />
     );
 
@@ -413,7 +412,7 @@ describe("Canvas — AI priority suggestion on task creation (Task 9 wiring)", (
       priorityIsAiSuggested: true,
     } as unknown as Awaited<ReturnType<typeof suggestTaskPriority>>);
 
-    render(<Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+    render(<Canvas threads={[ownerThread]} tasks={[]} {...defaultThemeProps} />);
 
     fireEvent.click(screen.getByRole("button", { name: "New task" }));
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
@@ -429,7 +428,7 @@ describe("Canvas — AI priority suggestion on task creation (Task 9 wiring)", (
     } as unknown as Awaited<ReturnType<typeof createTask>>);
     vi.mocked(suggestTaskPriority).mockRejectedValue(new Error("model unavailable"));
 
-    render(<Canvas threads={[ownerThread]} tasks={[]} positions={{}} {...defaultThemeProps} />);
+    render(<Canvas threads={[ownerThread]} tasks={[]} {...defaultThemeProps} />);
 
     fireEvent.click(screen.getByRole("button", { name: "New task" }));
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "New task" } });
@@ -439,5 +438,48 @@ describe("Canvas — AI priority suggestion on task creation (Task 9 wiring)", (
 
     // Swallowed silently — no unhandled rejection, no crash, dialog just closes.
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "New task in th1" })).not.toBeInTheDocument());
+  });
+});
+
+describe("Canvas — bubble clusters", () => {
+  it("opens a thread into its task bubbles and closes it again with the ×", async () => {
+    render(<Canvas threads={[ownerThread]} tasks={[task]} {...defaultThemeProps} />);
+    expect(screen.queryByLabelText(/^Original title/)).not.toBeInTheDocument();
+
+    openThreadBubble();
+    expect(await screen.findByLabelText("Original title, medium priority")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Close Q3 Report"));
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/^Original title/)).not.toBeInTheDocument()
+    );
+  });
+
+  it("closes the most recently opened thread on Escape", async () => {
+    render(<Canvas threads={[ownerThread]} tasks={[task]} {...defaultThemeProps} />);
+    openThreadBubble();
+    await screen.findByLabelText("Close Q3 Report");
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByLabelText("Close Q3 Report")).not.toBeInTheDocument());
+  });
+
+  it("restores open threads from localStorage for the same user", async () => {
+    window.localStorage.setItem("arc.openThreads.u1", JSON.stringify(["th1"]));
+    render(<Canvas threads={[ownerThread]} tasks={[task]} {...defaultThemeProps} />);
+    expect(await screen.findByLabelText("Close Q3 Report")).toBeInTheDocument();
+  });
+
+  it("opens the thread when a task is created in it from the threads panel", async () => {
+    vi.mocked(createTask).mockResolvedValue({ id: "new-task-id" } as unknown as Awaited<ReturnType<typeof createTask>>);
+    vi.mocked(suggestTaskPriority).mockResolvedValue({
+      id: "new-task-id",
+      priority: "MEDIUM",
+      priorityIsAiSuggested: true,
+    } as unknown as Awaited<ReturnType<typeof suggestTaskPriority>>);
+    render(<Canvas threads={[ownerThread]} tasks={[]} {...defaultThemeProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "New task" }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Fresh" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+    expect(await screen.findByLabelText("Close Q3 Report")).toBeInTheDocument();
   });
 });
