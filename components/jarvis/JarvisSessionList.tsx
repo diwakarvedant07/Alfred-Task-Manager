@@ -41,12 +41,12 @@ export default function JarvisSessionList({
   return (
     <>
       {mobileOpen && (
-        <div aria-hidden className="fixed inset-0 z-10 animate-fade-in bg-black/45 md:hidden" onClick={onMobileClose} />
+        <div aria-hidden className="fit-visible-viewport fixed inset-0 z-10 animate-fade-in bg-black/45 md:hidden" onClick={onMobileClose} />
       )}
       <div
         className={`glass h-full w-64 shrink-0 animate-slide-up flex-col gap-3 border-y-0 border-l-0 p-3 md:flex ${
           mobileOpen
-            ? "fixed inset-y-0 left-0 z-20 flex w-[min(20rem,85vw)] bg-surface! pt-[max(0.75rem,env(safe-area-inset-top))] md:static md:w-64"
+            ? "fit-visible-viewport fixed inset-y-0 left-0 z-20 flex w-[min(20rem,85vw)] bg-surface! pt-[max(0.75rem,env(safe-area-inset-top))] md:static md:w-64"
             : "hidden"
         }`}
       >

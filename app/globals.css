@@ -85,6 +85,46 @@ body {
   }
 }
 
+/* ---- Mobile browser chrome ----------------------------------------- */
+
+/* Kept current by DeviceProvider from window.visualViewport; these are the
+   fallbacks before it runs (or where the API doesn't exist). */
+:root {
+  --vvh: 100dvh;
+  --vv-top: 0px;
+}
+
+/* dvh tracks Safari/Chrome's collapsing toolbars; plain 100% stays as the
+   fallback (h-full on <body>) for browsers without dynamic units. With
+   viewport-fit=cover, also keep content out from under a landscape notch. */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+@supports (height: 100dvh) {
+  body {
+    height: 100dvh;
+  }
+}
+
+/* Full-screen overlays (Jarvis, task sheet, dialogs) on touch devices:
+   pin to the visible viewport so the on-screen keyboard shrinks them
+   instead of covering their inputs and buttons. Unlayered, so it wins over
+   the overlays' own `inset-0`/`inset-y-0` utilities. */
+@media (pointer: coarse) {
+  .fit-visible-viewport {
+    top: var(--vv-top);
+    bottom: auto;
+    height: var(--vvh);
+  }
+}
+
+/* Side padding for fixed overlays, which sit outside <body>'s padding. */
+.safe-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 /* Drop the grey flash WebKit paints over tapped buttons and links — every
    control here has its own hover/active styling. */
 html {

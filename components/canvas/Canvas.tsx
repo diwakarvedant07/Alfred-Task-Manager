@@ -700,12 +700,12 @@ function CanvasInner({
         // side rail, which would otherwise cover the whole screen edge to
         // edge with no visible way back to the list behind it.
         <div
-          className="fixed inset-0 z-[130] flex animate-fade-in flex-col bg-black/45 backdrop-blur-sm"
+          className="fit-visible-viewport fixed inset-0 z-[130] flex animate-fade-in flex-col bg-black/45 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedTaskId(null);
           }}
         >
-          <div key={selectedTask.id} className="mt-auto h-[92dvh] animate-slide-up">
+          <div key={selectedTask.id} className="mt-auto h-[min(92dvh,100%)] animate-slide-up">
             {taskDetailPanel(selectedTask)}
           </div>
         </div>
@@ -726,7 +726,7 @@ function CanvasInner({
             // the canvas strip) and dock against the strip's left edge
             // instead of the viewport's right edge so the rail doesn't
             // overlap the canvas either.
-            right: jarvisWorkspaceOpen ? "max(38%, 360px)" : 12,
+            right: jarvisWorkspaceOpen ? "max(38%, 360px)" : "calc(12px + env(safe-area-inset-right))",
             bottom: 12,
             width: "min(380px, calc(100% - 24px))",
             zIndex: jarvisWorkspaceOpen ? 120 : 20,

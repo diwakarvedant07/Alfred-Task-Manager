@@ -50,7 +50,7 @@ export default function Modal({
     <div
       // Phones: a bottom sheet anchored to the thumb zone (and above the
       // home indicator) rather than a card floating mid-screen.
-      className="fixed inset-0 z-[200] flex animate-fade-in items-end justify-center overflow-y-auto bg-black/45 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fit-visible-viewport safe-x fixed inset-0 z-[200] flex animate-fade-in items-end justify-center overflow-y-auto bg-black/45 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={(e) => {
         // Only the backdrop itself should close the dialog. Checking the
         // click's target (rather than stopping propagation on the card)
@@ -66,7 +66,7 @@ export default function Modal({
         aria-modal="true"
         aria-label={ariaLabel}
         tabIndex={-1}
-        className="elevated max-h-[92dvh] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-3xl border border-b-0 border-fg/10 bg-surface p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-fg outline-none sm:max-h-full sm:animate-pop-in sm:rounded-2xl sm:border-b sm:pb-6"
+        className="elevated max-h-[min(92dvh,100%)] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-3xl border border-b-0 border-fg/10 bg-surface p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-fg outline-none sm:max-h-full sm:animate-pop-in sm:rounded-2xl sm:border-b sm:pb-6"
       >
         {children}
       </div>

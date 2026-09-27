@@ -40,6 +40,10 @@ export const viewport: Viewport = {
   // PWA; the navbar and bottom-anchored controls pad themselves with
   // env(safe-area-inset-*) to stay clear of them.
   viewportFit: "cover",
+  // Chrome on Android: shrink the layout (and dvh) when the keyboard opens
+  // instead of drawing it over the page. Safari ignores this; there the
+  // visual-viewport sync in DeviceProvider handles the keyboard.
+  interactiveWidget: "resizes-content",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

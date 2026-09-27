@@ -191,7 +191,7 @@ export default function JarvisWorkspace({
     // anything positioned there (e.g. JarvisChat's Close button).
     // Below `md` there's no room for the side-by-side canvas preview, so the
     // workspace goes full-width (Canvas.tsx hides the strip at that size).
-    <div className="fixed inset-y-0 left-0 right-0 z-[110] flex animate-fade-in bg-canvas md:right-[max(38%,360px)]">
+    <div className="fit-visible-viewport safe-x fixed inset-y-0 left-0 right-0 z-[110] flex animate-fade-in bg-canvas md:right-[max(38%,360px)]">
       <JarvisSessionList
         sessions={sessions}
         activeSessionId={activeSessionId}

@@ -31,5 +31,35 @@ export default function DeviceProvider({ device, children }: { device: DeviceInf
     return () => mql.removeEventListener("change", record);
   }, []);
 
+  // Mobile browsers don't shrink the page when the on-screen keyboard (or,
+  // on some, the toolbars) cover part of it — only the *visual* viewport
+  // shrinks. Mirror it into CSS variables so full-screen overlays
+  // (.fit-visible-viewport in app/globals.css) can size themselves to the
+  // part of the screen actually visible, keeping inputs and their buttons
+  // above the keyboard instead of behind it.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    let frame = 0;
+    function sync() {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        root.style.setProperty("--vvh", `${vv!.height}px`);
+        root.style.setProperty("--vv-top", `${vv!.offsetTop}px`);
+      });
+    }
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      cancelAnimationFrame(frame);
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      root.style.removeProperty("--vvh");
+      root.style.removeProperty("--vv-top");
+    };
+  }, []);
+
   return <DeviceContext.Provider value={device}>{children}</DeviceContext.Provider>;
 }
