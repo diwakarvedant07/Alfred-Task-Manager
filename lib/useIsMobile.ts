@@ -1,10 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-
-// Matches Tailwind's `sm` breakpoint: below it the sidebar rail is hidden
-// and the app switches to its phone layout.
-const MOBILE_QUERY = "(max-width: 639px)";
+import { useDevice } from "@/components/device/DeviceProvider";
+import { MOBILE_QUERY } from "./viewport";
 
 function subscribe(onChange: () => void): () => void {
   if (typeof window === "undefined" || !window.matchMedia) return () => {};
@@ -20,7 +18,9 @@ function getSnapshot(): boolean {
 }
 
 export function useIsMobile(): boolean {
-  // The server can't know the viewport, so it renders the desktop layout;
-  // phones switch over during hydration.
-  return useSyncExternalStore(subscribe, getSnapshot, () => false);
+  // The server can't measure the viewport, so the server render (and
+  // hydration, which must match it) uses the device detected from the
+  // request headers; the live media query takes over after hydration.
+  const device = useDevice();
+  return useSyncExternalStore(subscribe, getSnapshot, () => device.type === "mobile");
 }
