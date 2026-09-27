@@ -104,10 +104,12 @@ saved `ThreadPosition` or `threadLayout` defaults.
 2. Task bubbles mount at the center at scale 0 and spring to their
    `clusterLayout` positions, staggered ~25 ms in layout order (HIGH first).
 3. Simultaneously the camera eases to the cluster via React Flow
-   `setCenter(x, y, { zoom, duration: 500 })`, where `zoom` is the larger of
-   the current zoom and the zoom needed to fit the cluster radius (with
-   padding) in the viewport — i.e. it only zooms in if needed, otherwise
-   pans. Phones use tighter padding so the whole cluster fits.
+   `setCenter(x, y, { zoom, duration: 500 })`. If the cluster (radius plus
+   padding) already fits at the current zoom and that zoom is readable
+   (≥ 0.8, or ≥ the fit zoom when that is smaller), the camera only pans.
+   Otherwise it moves to the fit zoom, capped at 1.2
+   (`cameraZoomForCluster` in `threadLayout.ts`). Phones use tighter padding
+   so the whole cluster fits.
 4. Opening a thread also triggers the existing catch-up check
    (`openThreadAndMaybeGetCatchUp`) and modal, as clicking a bubble does
    today.
