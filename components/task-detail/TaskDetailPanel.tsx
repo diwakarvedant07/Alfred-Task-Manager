@@ -74,7 +74,7 @@ export default function TaskDetailPanel({
           <h2 className="text-sm font-semibold tracking-tight">Task detail</h2>
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${status.className}`}>{status.label}</span>
         </div>
-        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose} className="h-8 w-8 rounded-full">
+        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose} className="h-9 w-9 rounded-full sm:h-8 sm:w-8">
           <X size={17} />
         </Button>
       </div>
@@ -168,7 +168,7 @@ export default function TaskDetailPanel({
         </section>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-fg/[0.08] p-4">
+      <div className="flex flex-col gap-2 border-t border-fg/[0.08] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <Textarea
           label="Add an update"
           hideLabel

@@ -8,6 +8,10 @@ import { db } from "@/lib/db";
 import { themeToCssVariables } from "@/lib/theme";
 import { BASE_PATH } from "@/lib/basePath";
 import AuthSessionProvider from "@/components/auth/AuthSessionProvider";
+import DeviceProvider from "@/components/device/DeviceProvider";
+import { cookies, headers } from "next/headers";
+import { detectDevice } from "@/lib/device";
+import { VIEWPORT_COOKIE } from "@/lib/viewport";
 
 // Matches the Prisma User model's own defaults (prisma/schema.prisma:
 // themeMode DARK, accentColor #38e0ff) — used for logged-out routes like
@@ -32,6 +36,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0a0e14",
+  // Lets the app draw under the notch/home indicator when installed as a
+  // PWA; the navbar and bottom-anchored controls pad themselves with
+  // env(safe-area-inset-*) to stay clear of them.
+  viewportFit: "cover",
+  // Chrome on Android: shrink the layout (and dvh) when the keyboard opens
+  // instead of drawing it over the page. Safari ignores this; there the
+  // visual-viewport sync in DeviceProvider handles the keyboard.
+  interactiveWidget: "resizes-content",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -42,6 +54,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // crashing or leaving those pages unthemed.
   let themeMode: "LIGHT" | "DARK" = DEFAULT_THEME_MODE;
   let accentColor = DEFAULT_ACCENT_COLOR;
+
+  // Detected from the request itself so the first HTML response already
+  // has the phone or desktop layout (see components/device/DeviceProvider).
+  const device = detectDevice(await headers(), (await cookies()).get(VIEWPORT_COOKIE)?.value);
 
   const session = await auth();
   if (session?.user?.id) {
@@ -67,9 +83,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="flex h-full min-h-full flex-col">
         <AuthSessionProvider>
-          <ThemeProvider themeMode={themeMode} accentColor={accentColor}>
-            {children}
-          </ThemeProvider>
+          <DeviceProvider device={device}>
+            <ThemeProvider themeMode={themeMode} accentColor={accentColor}>
+              {children}
+            </ThemeProvider>
+          </DeviceProvider>
         </AuthSessionProvider>
         <ServiceWorkerRegistration />
       </body>

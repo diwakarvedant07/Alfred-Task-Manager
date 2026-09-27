@@ -42,6 +42,7 @@ export default function JarvisWorkspace({
   const [messages, setMessages] = useState<JarvisMessageView[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const refreshSessions = useCallback(async () => {
     setSessions(await listJarvisSessions());
@@ -68,6 +69,10 @@ export default function JarvisWorkspace({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
+      if (historyOpen) {
+        setHistoryOpen(false);
+        return;
+      }
       // A Modal (e.g. "New Thread"/"Share", triggered from the canvas strip
       // alongside this workspace) also listens for Escape on `document`. If
       // one is open, let it handle the key and close itself only -- without
@@ -78,7 +83,7 @@ export default function JarvisWorkspace({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, historyOpen]);
 
   // A generic, user-visible fallback for the session-management handlers
   // below -- mirrors Canvas.tsx's handleThreadBubbleClick pattern of
@@ -186,14 +191,22 @@ export default function JarvisWorkspace({
     // anything positioned there (e.g. JarvisChat's Close button).
     // Below `md` there's no room for the side-by-side canvas preview, so the
     // workspace goes full-width (Canvas.tsx hides the strip at that size).
-    <div className="fixed inset-y-0 left-0 right-0 z-[110] flex animate-fade-in bg-canvas md:right-[max(38%,360px)]">
+    <div className="fit-visible-viewport safe-x fixed inset-y-0 left-0 right-0 z-[110] flex animate-fade-in bg-canvas md:right-[max(38%,360px)]">
       <JarvisSessionList
         sessions={sessions}
         activeSessionId={activeSessionId}
-        onNewChat={handleNewChat}
-        onSelect={handleSelect}
+        onNewChat={() => {
+          setHistoryOpen(false);
+          void handleNewChat();
+        }}
+        onSelect={(id) => {
+          setHistoryOpen(false);
+          void handleSelect(id);
+        }}
         onRename={handleRename}
         onDelete={handleDelete}
+        mobileOpen={historyOpen}
+        onMobileClose={() => setHistoryOpen(false)}
       />
       <JarvisChat
         sessionTitle={activeSession?.title ?? null}
@@ -204,6 +217,7 @@ export default function JarvisWorkspace({
         onRenameSession={handleRenameActiveSession}
         onClose={onClose}
         onNewChat={handleNewChat}
+        onShowHistory={() => setHistoryOpen(true)}
       />
     </div>
   );

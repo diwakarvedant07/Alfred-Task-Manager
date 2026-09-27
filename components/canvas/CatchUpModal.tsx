@@ -17,7 +17,7 @@ export default function CatchUpModal({
     <div
       role="dialog"
       aria-label="Catch-up"
-      className="fixed inset-0 z-[100] flex animate-fade-in flex-col items-center justify-center gap-6 bg-[color-mix(in_srgb,var(--bg)_88%,transparent)] px-6 text-fg backdrop-blur-xl"
+      className="fit-visible-viewport safe-x fixed inset-0 z-[100] flex animate-fade-in flex-col items-center justify-center gap-6 bg-[color-mix(in_srgb,var(--bg)_88%,transparent)] px-6 text-fg backdrop-blur-xl"
     >
       <Button
         variant="ghost"

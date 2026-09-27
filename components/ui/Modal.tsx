@@ -48,7 +48,9 @@ export default function Modal({
   // NewThreadButton's are triggered from inside that resized canvas.
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex animate-fade-in items-center justify-center overflow-y-auto bg-black/45 p-4 backdrop-blur-sm"
+      // Phones: a bottom sheet anchored to the thumb zone (and above the
+      // home indicator) rather than a card floating mid-screen.
+      className="fit-visible-viewport safe-x fixed inset-0 z-[200] flex animate-fade-in items-end justify-center overflow-y-auto bg-black/45 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={(e) => {
         // Only the backdrop itself should close the dialog. Checking the
         // click's target (rather than stopping propagation on the card)
@@ -64,7 +66,7 @@ export default function Modal({
         aria-modal="true"
         aria-label={ariaLabel}
         tabIndex={-1}
-        className="elevated max-h-full w-full max-w-md animate-pop-in overflow-y-auto rounded-2xl border border-fg/10 bg-surface p-6 text-fg outline-none"
+        className="elevated max-h-[min(92dvh,100%)] w-full max-w-md animate-slide-up overflow-y-auto rounded-t-3xl border border-b-0 border-fg/10 bg-surface p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-fg outline-none sm:max-h-full sm:animate-pop-in sm:rounded-2xl sm:border-b sm:pb-6"
       >
         {children}
       </div>

@@ -28,6 +28,7 @@ export default function ThreadsPanel({
   onLoadThreadShares,
   onRevokeThreadShare,
   onFocusThread,
+  defaultCollapsed = false,
 }: {
   threads: ThreadSummary[];
   taskCounts: Record<string, number>;
@@ -38,8 +39,10 @@ export default function ThreadsPanel({
   onLoadThreadShares: (threadId: string) => void;
   onRevokeThreadShare: (threadId: string, shareId: string) => void | Promise<void>;
   onFocusThread: (threadId: string) => void;
+  // Phones start collapsed so the panel doesn't cover most of the canvas.
+  defaultCollapsed?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   return (
     <div className="glass elevated flex w-[288px] max-w-[calc(100vw-24px)] animate-slide-up flex-col overflow-hidden rounded-2xl text-fg">

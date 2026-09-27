@@ -16,7 +16,7 @@ export default function Navbar({
   preferredAiModel: string;
 }) {
   return (
-    <header className="glass relative z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-x-0 border-t-0 px-4">
+    <header className="glass relative z-20 box-content flex h-14 shrink-0 items-center justify-between gap-3 border-x-0 border-t-0 px-4 pt-[env(safe-area-inset-top)]">
       <div className="flex min-w-0 items-center gap-2 text-sm">
         <span className="font-semibold tracking-tight text-fg">Arc</span>
         <PageTitle />
