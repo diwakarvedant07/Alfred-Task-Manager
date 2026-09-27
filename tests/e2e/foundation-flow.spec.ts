@@ -33,7 +33,7 @@ test("signup, thread/task creation, sharing, delete, and recycle-bin restore", a
     await page.getByRole("button", { name: "New thread" }).click();
     await page.getByLabel("Thread name").fill("Q3 Report");
     await page.getByRole("button", { name: "Create" }).click();
-    await expect(page.getByText("Q3 Report")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Q3 Report — .*Open thread$/ })).toBeVisible();
   });
 
   await test.step("owner creates a task in the thread", async () => {
@@ -89,7 +89,8 @@ test("signup, thread/task creation, sharing, delete, and recycle-bin restore", a
 
   await test.step("viewer sees the shared thread and task, and can comment", async () => {
     await viewerPage.goto("/canvas");
-    await expect(viewerPage.getByText("Q3 Report")).toBeVisible();
+    // A fresh viewer's canvas starts with every thread closed.
+    await viewerPage.getByRole("button", { name: /^Q3 Report — .*Open thread$/ }).click();
     await expect(viewerPage.getByText("Draft exec summary")).toBeVisible();
 
     await viewerPage.getByText("Draft exec summary").click();
