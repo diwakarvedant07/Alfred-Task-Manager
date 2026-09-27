@@ -77,9 +77,10 @@ export async function sendJarvisMessage(
   let completionTokens = 0;
   let totalTokens = 0;
   let succeeded = false;
+  let round = 0;
 
   try {
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    for (; round < MAX_TOOL_ROUNDS; round++) {
       const result = await generateWithTools(user.preferredAiModel, contents, {
         systemInstruction,
         tools: round === MAX_TOOL_ROUNDS - 1 ? undefined : JARVIS_TOOLS,
@@ -90,6 +91,13 @@ export async function sendJarvisMessage(
       contents = [...contents, result.modelContent];
 
       if (result.functionCalls.length === 0) {
+        if (!result.text && chipLog.length === 0) {
+          // Not an exception, but the user still sees the fallback error —
+          // log why so it can be told apart from a failed call.
+          console.error(
+            `[jarvis] Gemini returned no text and no tool calls (session ${sessionId}, user ${userId}, model ${user.preferredAiModel}, round ${round}). Showing the fallback error.`
+          );
+        }
         finalText = result.text || (chipLog.length > 0 ? `Done: ${chipLog.map((c) => c.summary).join("; ")}` : FALLBACK_ERROR_TEXT);
         break;
       }
@@ -110,7 +118,13 @@ export async function sendJarvisMessage(
       }
     }
     succeeded = true;
-  } catch {
+  } catch (err) {
+    // The user only sees FALLBACK_ERROR_TEXT; the real cause (network,
+    // rate limit, bad model id, tool dispatch crash…) goes to the server log.
+    console.error(
+      `[jarvis] Reply failed (session ${sessionId}, user ${userId}, model ${user.preferredAiModel}, round ${round}, tool actions so far ${chipLog.length}). Showing the fallback error.`,
+      err
+    );
     finalText = FALLBACK_ERROR_TEXT;
   }
 
