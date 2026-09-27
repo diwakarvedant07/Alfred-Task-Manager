@@ -5,6 +5,7 @@ import { ArrowUp, Check, History, SquarePen, X } from "lucide-react";
 import Textarea from "@/components/ui/Textarea";
 import Button from "@/components/ui/Button";
 import FormAlert from "@/components/ui/FormAlert";
+import { motion } from "framer-motion";
 import Orb from "@/components/ui/Orb";
 import { THEMED_SCROLLBAR } from "@/components/ui/scrollbar";
 
@@ -100,7 +101,9 @@ export default function JarvisChat({
               <History size={17} />
             </Button>
           )}
-          <Orb state={sending ? "working" : "breathing"} size={24} halo={false} />
+          <motion.span layoutId="jarvis-orb" className="inline-flex">
+            <Orb state={sending ? "working" : "breathing"} size={24} halo={false} />
+          </motion.span>
           {editingTitle ? (
             <input
               autoFocus

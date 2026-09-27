@@ -483,3 +483,12 @@ describe("Canvas — bubble clusters", () => {
     expect(await screen.findByLabelText("Close Q3 Report")).toBeInTheDocument();
   });
 });
+
+describe("Canvas — Jarvis launch", () => {
+  it("opens the workspace from the launcher and restores the launcher on close", async () => {
+    render(<Canvas threads={[]} tasks={[]} {...defaultThemeProps} />);
+    fireEvent.click(screen.getByRole("button", { name: "Jarvis" }));
+    expect(await screen.findByTestId("jarvis-launch-transition")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Jarvis" })).not.toBeInTheDocument();
+  });
+});

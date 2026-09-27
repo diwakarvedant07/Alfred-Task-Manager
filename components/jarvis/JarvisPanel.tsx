@@ -1,5 +1,7 @@
 "use client";
 
+import type { Ref } from "react";
+import { motion } from "framer-motion";
 import Orb from "@/components/ui/Orb";
 
 // Floating launcher for the Jarvis workspace: a live "breathing" orb that
@@ -7,13 +9,18 @@ import Orb from "@/components/ui/Orb";
 export default function JarvisPanel({
   onOpen,
   shifted = false,
+  buttonRef,
 }: {
   onOpen: () => void;
   // Moves the launcher left of the task-detail rail while that's open.
   shifted?: boolean;
+  // Lets the canvas read the launcher's position so the Jarvis
+  // workspace can grow out of it (also used by the "J" shortcut).
+  buttonRef?: Ref<HTMLButtonElement>;
 }) {
   return (
     <button
+      ref={buttonRef}
       aria-label="Jarvis"
       title="Ask Jarvis (J)"
       onClick={onOpen}
@@ -24,7 +31,9 @@ export default function JarvisPanel({
           : "calc(20px + env(safe-area-inset-right))",
       }}
     >
-      <Orb state="breathing" size={36} />
+      <motion.span layoutId="jarvis-orb" className="inline-flex">
+        <Orb state="breathing" size={36} />
+      </motion.span>
       <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-300 group-hover:max-w-[120px] group-hover:opacity-100 group-focus-visible:max-w-[120px] group-focus-visible:opacity-100">
         Ask Jarvis
         <kbd className="ml-2 rounded border border-fg/15 px-1 font-mono text-[10px] text-fg/50">J</kbd>

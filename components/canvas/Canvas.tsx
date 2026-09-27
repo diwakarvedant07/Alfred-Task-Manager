@@ -16,7 +16,7 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useReducedMotion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import ThreadClusterNode, { type ThreadClusterData } from "./ThreadClusterNode";
 import { clusterLayout, type ClusterLayout } from "./clusterLayout";
 import { COLLAPSED_DIAMETER, cameraZoomForCluster, clustersOverlap, defaultThreadPosition } from "./threadLayout";
@@ -30,6 +30,7 @@ import TaskDetailPanel from "@/components/task-detail/TaskDetailPanel";
 import CatchUpModal from "./CatchUpModal";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
 import JarvisWorkspace from "@/components/jarvis/JarvisWorkspace";
+import JarvisLauncherTransition, { type LauncherOrigin } from "@/components/jarvis/JarvisLauncherTransition";
 import type { JarvisSessionSummary } from "@/components/jarvis/JarvisSessionList";
 import { saveThreadPosition } from "@/app/actions/threadPositions";
 import {
@@ -93,6 +94,15 @@ function CanvasInner({
   // browsers deliver at the end of a drag.
   const lastDragEndRef = useRef(0);
   const [jarvisWorkspaceOpen, setJarvisWorkspaceOpen] = useState(false);
+  const launcherRef = useRef<HTMLButtonElement | null>(null);
+  const [jarvisOrigin, setJarvisOrigin] = useState<LauncherOrigin | null>(null);
+  // Opens Jarvis from wherever the launcher currently is (it shifts left
+  // while the task rail is open), for both the button and the "J" key.
+  const openJarvis = useCallback(() => {
+    const rect = launcherRef.current?.getBoundingClientRect();
+    setJarvisOrigin(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null);
+    setJarvisWorkspaceOpen(true);
+  }, []);
   // Phones default to the bubble canvas (tap-friendly, no dragging needed),
   // with a toggle to the thread-grouped list. Ignored on wider screens,
   // which always show the canvas.
@@ -532,11 +542,11 @@ function CanvasInner({
       if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       e.preventDefault();
-      setJarvisWorkspaceOpen(true);
+      openJarvis();
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [openJarvis]);
 
   // Esc closes the most recently opened cluster — same guards as "J", and
   // not while Jarvis (which has its own Esc handling) is open.
@@ -621,7 +631,9 @@ function CanvasInner({
           attached to it instead of floating disconnected at the old
           top-left. The SAME <ReactFlow> element is reused either way (no
           remount), so pan/zoom state survives opening and closing Jarvis. */}
-      <div
+      <motion.div
+        layout
+        transition={{ duration: reducedMotion ? 0 : 0.45, ease: [0.22, 1, 0.36, 1] }}
         className={
           jarvisWorkspaceOpen
             ? "fixed inset-y-0 right-0 z-[115] hidden w-[max(38%,360px)] border-l border-fg/10 bg-canvas md:block"
@@ -761,7 +773,7 @@ function CanvasInner({
             </Controls>
           </ReactFlow>
         )}
-      </div>
+      </motion.div>
 
       {catchUp && (
         <CatchUpModal
@@ -813,14 +825,27 @@ function CanvasInner({
         </div>
       )}
 
-      {!jarvisWorkspaceOpen && (
-        // Slides left of the task-detail rail while it's open, so it no
-        // longer sits on top of the rail's "Post update" button.
-        <JarvisPanel onOpen={() => setJarvisWorkspaceOpen(true)} shifted={selectedTask !== null && !isMobile} />
-      )}
-      {jarvisWorkspaceOpen && (
-        <JarvisWorkspace initialSessions={initialJarvisSessions} onClose={() => setJarvisWorkspaceOpen(false)} />
-      )}
+      <LayoutGroup>
+        {!jarvisWorkspaceOpen && (
+          // Slides left of the task-detail rail while it's open, so it no
+          // longer sits on top of the rail's "Post update" button.
+          <JarvisPanel
+            buttonRef={launcherRef}
+            onOpen={openJarvis}
+            shifted={selectedTask !== null && !isMobile}
+          />
+        )}
+        <AnimatePresence>
+          {jarvisWorkspaceOpen && (
+            <JarvisLauncherTransition key="jarvis" origin={jarvisOrigin}>
+              <JarvisWorkspace
+                initialSessions={initialJarvisSessions}
+                onClose={() => setJarvisWorkspaceOpen(false)}
+              />
+            </JarvisLauncherTransition>
+          )}
+        </AnimatePresence>
+      </LayoutGroup>
     </div>
   );
 }
