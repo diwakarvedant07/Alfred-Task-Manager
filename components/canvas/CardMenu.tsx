@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
 
-type TaskMenuProps = {
+// Optional controlled mode: a parent that opens the menu some other way
+// (long-press/right-click on a canvas bubble) passes open/onOpenChange and
+// hideTrigger to render just the popover without the ⋮ button.
+type ControlProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+};
+
+type TaskMenuProps = ControlProps & {
   variant: "task";
   onRename: () => void;
   onMoveToThread: () => void;
@@ -11,7 +20,7 @@ type TaskMenuProps = {
   onDelete: () => void;
 };
 
-type ThreadMenuProps = {
+type ThreadMenuProps = ControlProps & {
   variant: "thread";
   onRename: () => void;
   onChangeColor: () => void;
@@ -36,7 +45,17 @@ const dangerItemClassName =
   "block w-full rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10";
 
 export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = props.open !== undefined;
+  const open = isControlled ? props.open! : uncontrolledOpen;
+  const { onOpenChange } = props;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (!isControlled) setUncontrolledOpen(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange]
+  );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -52,7 +71,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
     }
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [open]);
+  }, [open, setOpen]);
 
   function startLongPress() {
     timerRef.current = setTimeout(() => setOpen(true), LONG_PRESS_MS);
@@ -77,15 +96,17 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
       onClick={(e) => e.stopPropagation()}
       className="relative"
     >
-      <button
-        aria-label="More actions"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="flex h-7 w-7 items-center justify-center rounded-lg pointer-coarse:h-9 pointer-coarse:w-9 text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
-      >
-        <MoreVertical size={16} />
-      </button>
+      {!props.hideTrigger && (
+        <button
+          aria-label="More actions"
+          onClick={() => setOpen(!open)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="flex h-7 w-7 items-center justify-center rounded-lg pointer-coarse:h-9 pointer-coarse:w-9 text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
+        >
+          <MoreVertical size={16} />
+        </button>
+      )}
       {open && (
         <div
           role="menu"

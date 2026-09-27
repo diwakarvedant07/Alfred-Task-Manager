@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
@@ -12,6 +12,7 @@ export default function NewTaskButton({
   threadName,
   compact = false,
   onCreate,
+  renderTrigger,
 }: {
   threadId: string;
   // Shown in the dialog heading ("New task in Product launch").
@@ -20,6 +21,9 @@ export default function NewTaskButton({
   // accessible name stays "New task" either way.
   compact?: boolean;
   onCreate: (input: { title: string; description?: string; dueDate?: Date }) => void;
+  // Custom trigger (e.g. the "+" bubble in an open thread cluster). Gets a
+  // function that opens the dialog.
+  renderTrigger?: (openDialog: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -28,6 +32,7 @@ export default function NewTaskButton({
   const canSubmit = title.trim() !== "";
 
   if (!open) {
+    if (renderTrigger) return <>{renderTrigger(() => setOpen(true))}</>;
     return compact ? (
       <Button
         variant="ghost"

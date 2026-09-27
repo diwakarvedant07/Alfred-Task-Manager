@@ -145,3 +145,44 @@ describe("CardMenu", () => {
     expect(onViewCatchUp).toHaveBeenCalled();
   });
 });
+
+describe("CardMenu — controlled mode", () => {
+  it("renders the menu without a trigger button when open and hideTrigger are set", () => {
+    const onOpenChange = vi.fn();
+    const onDelete = vi.fn();
+    render(
+      <CardMenu
+        variant="task"
+        hideTrigger
+        open
+        onOpenChange={onOpenChange}
+        onRename={vi.fn()}
+        onMoveToThread={vi.fn()}
+        onLinkSecondaryThread={vi.fn()}
+        onDelete={onDelete}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("asks to close on an outside pointerdown", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <CardMenu
+        variant="task"
+        hideTrigger
+        open
+        onOpenChange={onOpenChange}
+        onRename={vi.fn()}
+        onMoveToThread={vi.fn()}
+        onLinkSecondaryThread={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+    fireEvent.pointerDown(document.body);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});

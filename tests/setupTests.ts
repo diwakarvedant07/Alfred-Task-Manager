@@ -16,3 +16,8 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
 }
+
+// framer-motion: finish every animation instantly so AnimatePresence exits
+// (closing a thread cluster, closing Jarvis) settle within a waitFor.
+import { MotionGlobalConfig } from "framer-motion";
+MotionGlobalConfig.skipAnimations = true;
