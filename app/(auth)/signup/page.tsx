@@ -37,8 +37,9 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-8 shadow-2xl">
-      <h1 className="mb-6 text-2xl font-semibold text-[var(--text,#eafcff)]">Sign up</h1>
+    <div className="elevated w-full max-w-sm animate-rise rounded-3xl border border-fg/10 bg-[color-mix(in_srgb,var(--surface)_85%,transparent)] p-8 backdrop-blur-xl [animation-delay:80ms]">
+      <h1 className="text-2xl font-semibold tracking-tight text-fg">Sign up</h1>
+      <p className="mb-6 mt-1 text-sm text-fg/55">Create an account to start your canvas.</p>
       <form action={handleSubmit} data-testid="signup-form" className="flex flex-col gap-4">
         <Input name="name" placeholder="Name" label="Name" hideLabel icon={<User size={16} />} required />
         <Input
@@ -64,9 +65,9 @@ export default function SignupPage() {
         </Button>
         {error && <FormAlert>{error}</FormAlert>}
       </form>
-      <p className="mt-6 text-center text-sm text-[var(--text,#eafcff)]/60">
+      <p className="mt-6 text-center text-sm text-fg/55">
         Already have an account?{" "}
-        <Link href="/login" className="text-[var(--accent,#38e0ff)] hover:underline">
+        <Link href="/login" className="font-medium text-accent hover:underline">
           Log in
         </Link>
       </p>

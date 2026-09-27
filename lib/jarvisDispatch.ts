@@ -40,7 +40,10 @@ export async function executeJarvisTool(
           description: (args.description as string | undefined) ?? undefined,
           dueDate: args.dueDate ? new Date(args.dueDate as string) : undefined,
         });
-        await suggestTaskPriority(task.id).catch(() => {});
+        await suggestTaskPriority(task.id).catch((err) => {
+          // Background enhancement: the task keeps its default priority.
+          console.error(`[jarvis] Priority suggestion failed for task ${task.id}; keeping the default priority.`, err);
+        });
         const summary = `Created task "${title}" in ${threadName}`;
         return { functionResponsePayload: { output: { taskId: task.id } }, chipEntry: { tool: "createTaskInThread", success: true, summary } };
       } catch (err) {
@@ -71,7 +74,10 @@ export async function executeJarvisTool(
           description: (args.description as string | undefined) ?? undefined,
           dueDate: args.dueDate ? new Date(args.dueDate as string) : undefined,
         });
-        await suggestTaskPriority(task.id).catch(() => {});
+        await suggestTaskPriority(task.id).catch((err) => {
+          // Background enhancement: the task keeps its default priority.
+          console.error(`[jarvis] Priority suggestion failed for task ${task.id}; keeping the default priority.`, err);
+        });
         const summary = `Created new thread "${threadName}" with task "${title}"`;
         return {
           functionResponsePayload: { output: { threadId: thread.id, taskId: task.id } },

@@ -9,3 +9,15 @@ import "@testing-library/jest-dom/vitest";
 if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoView() {};
 }
+
+// jsdom has no 2D canvas and logs a "Not implemented" error for every
+// getContext() call. ThinkingOrb (components/ui/Orb.tsx) already handles a
+// null context by skipping drawing, so return that quietly instead.
+if (typeof HTMLCanvasElement !== "undefined") {
+  HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
+}
+
+// framer-motion: finish every animation instantly so AnimatePresence exits
+// (closing a thread cluster, closing Jarvis) settle within a waitFor.
+import { MotionGlobalConfig } from "framer-motion";
+MotionGlobalConfig.skipAnimations = true;

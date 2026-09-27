@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Locator } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 // End-to-end test for the thread catch-up flow: a brand-new thread's very
 // first view shows no catch-up modal, the manual "View catch-up" menu item
@@ -20,45 +20,18 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
 //     NewThreadButton.tsx, NewTaskButton.tsx, CatchUpModal.tsx
 //   - components/settings/ModelPicker.tsx
 //
-// Real-UI detail the plan's draft missed: a thread's bubble (and the "⋮"
-// menu that has "View catch-up" on it) only renders once the canvas is
-// zoomed out below the BUBBLE/CARD tier threshold (components/canvas/
-// zoomTier.ts, ZOOM_TIER_THRESHOLD = 0.6) -- the canvas always starts in
-// the CARD tier (app/canvas/page.tsx never passes initialTier). The
-// draft's `page.getByText("Q3 Report").click()` actually hits a plain,
-// handler-less <span> in the top-left thread list (rendered regardless of
-// tier), which would pass trivially without ever exercising
-// handleThreadBubbleClick or the bubble's menu at all. This test instead
-// drives the ReactFlow Controls' real zoom buttons to reach each tier, and
-// scopes locators to `.react-flow__node-threadBubble` / `-task` to
-// disambiguate from that same-named strip text.
-
-// Clicks the ReactFlow Controls' zoom button enough times to hit the
-// canvas's min/max zoom bound, which flips the BUBBLE/CARD tier (see
-// zoomTier.ts). Each click is a discrete, immediate zoomIn()/zoomOut()
-// call (unlike a wheel gesture, whose "moveEnd" -- and so the app's own
-// onMoveEnd-driven tier state -- never reliably fired for a
-// Playwright-synthesized wheel event in this app, even though it did
-// visibly change the canvas's raw CSS zoom transform), so a plain click
-// loop is reliable here. Stops early once the button disables itself at
-// the bound, instead of retrying a click Playwright would otherwise wait
-// on indefinitely, and leaves the final assertion to fail with a clear
-// message if the tier still didn't flip.
-async function setZoomTier(page: Page, tier: "BUBBLE" | "CARD", target: Locator) {
-  const button = page.getByRole("button", { name: tier === "BUBBLE" ? "Zoom Out" : "Zoom In" });
-  for (let i = 0; i < 20; i++) {
-    if (!(await button.isEnabled())) break;
-    await button.click();
-  }
-  await expect(target).toBeVisible();
-}
+// Threads are bubbles that open on click (components/canvas/
+// ThreadClusterNode.tsx); task bubbles only exist inside an open thread.
+// The thread's name also appears in the threads panel, so the bubble is
+// located by its aria-label (which ends in "Open thread").
 
 test("thread catch-up: no modal on first-ever view, manual View catch-up works, AI model preference persists", async ({
   page,
 }) => {
   const email = `catchup-${Date.now()}@example.com`;
-  const threadBubble = page.locator(".react-flow__node-threadBubble");
-  const taskCard = page.locator(".react-flow__node-task");
+  const threadNode = page.locator(".react-flow__node-threadCluster");
+  const threadBubble = page.getByRole("button", { name: /^Q3 Report — .*Open thread$/ });
+  const closeThread = page.getByRole("button", { name: "Close Q3 Report" });
   const catchUpDialog = page.getByRole("dialog", { name: "Catch-up" });
 
   await test.step("sign up and land on the canvas", async () => {
@@ -74,15 +47,13 @@ test("thread catch-up: no modal on first-ever view, manual View catch-up works, 
     await page.getByRole("button", { name: "New thread" }).click();
     await page.getByLabel("Thread name").fill("Q3 Report");
     await page.getByRole("button", { name: "Create" }).click();
-    await expect(page.getByText("Q3 Report")).toBeVisible();
+    await expect(threadBubble).toBeVisible();
   });
 
   await test.step("first-ever view of the brand-new thread shows no catch-up modal", async () => {
-    // Thread bubbles only render in the BUBBLE zoom tier -- zoom out to
-    // reach it, then click the bubble itself (not the settings-strip text)
-    // to actually trigger handleThreadBubbleClick.
-    await setZoomTier(page, "BUBBLE", threadBubble);
-    await threadBubble.getByText("Q3 Report").click();
+    // Opening the bubble runs handleThreadBubbleClick's catch-up check.
+    await threadBubble.click();
+    await expect(closeThread).toBeVisible();
     await expect(catchUpDialog).toHaveCount(0);
   });
 
@@ -90,17 +61,16 @@ test("thread catch-up: no modal on first-ever view, manual View catch-up works, 
     await page.getByRole("button", { name: "New task" }).click();
     await page.getByLabel("Title").fill("Draft exec summary");
     await page.getByRole("button", { name: "Create task" }).click();
-    // Task cards only render in the CARD zoom tier -- zoom back in to
-    // confirm it was actually created, not just that the dialog closed.
-    await setZoomTier(page, "CARD", taskCard);
-    await expect(taskCard.getByText("Draft exec summary")).toBeVisible();
+    // The thread is open, so the new task pops into its cluster.
+    await expect(page.getByRole("button", { name: /^Draft exec summary, / })).toBeVisible();
   });
 
   await test.step('manual "View catch-up" shows the empty-state placeholder', async () => {
-    // Zoom back out to the BUBBLE tier to reach the thread's own menu.
-    await setZoomTier(page, "BUBBLE", threadBubble);
-    await threadBubble.getByRole("button", { name: "More actions" }).click();
-    await threadBubble.getByRole("menuitem", { name: "View catch-up" }).click();
+    // The ⋮ menu lives on the collapsed bubble, so close the thread first.
+    await closeThread.click();
+    await expect(threadBubble).toBeVisible();
+    await threadNode.getByRole("button", { name: "More actions" }).click();
+    await threadNode.getByRole("menuitem", { name: "View catch-up" }).click();
 
     await expect(catchUpDialog).toBeVisible();
     await expect(catchUpDialog.getByText("Nothing to catch up on yet.")).toBeVisible();

@@ -1,6 +1,8 @@
 "use client";
 
 import { useId, type SelectHTMLAttributes, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
+import { FIELD_CLASSNAME, LABEL_CLASSNAME } from "./fieldStyles";
 
 export default function Select({
   label,
@@ -21,17 +23,20 @@ export default function Select({
     <div className="flex flex-col gap-1.5 text-sm">
       <label
         htmlFor={inputId}
-        className={hideLabel ? "sr-only" : "font-medium text-[var(--text,#eafcff)]"}
+        className={hideLabel ? "sr-only" : LABEL_CLASSNAME}
       >
         {label}
       </label>
-      <select
-        id={inputId}
-        className={`w-full rounded-lg border border-[var(--text,#eafcff)]/15 bg-[var(--panel-bg,rgba(15,25,35,0.85))] px-3 py-2 text-[var(--text,#eafcff)] outline-none transition-colors focus:border-[var(--accent,#38e0ff)] disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
-        {...rest}
-      >
-        {children}
-      </select>
+      <span className="relative flex items-center">
+        <select
+          id={inputId}
+          className={`${FIELD_CLASSNAME} h-10 cursor-pointer appearance-none pl-3 pr-9 ${className}`}
+          {...rest}
+        >
+          {children}
+        </select>
+        <ChevronDown size={16} className="pointer-events-none absolute right-3 text-fg/40" />
+      </span>
     </div>
   );
 }

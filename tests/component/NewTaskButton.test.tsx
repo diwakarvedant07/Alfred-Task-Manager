@@ -46,3 +46,22 @@ describe("NewTaskButton", () => {
     });
   });
 });
+
+describe("NewTaskButton — custom trigger", () => {
+  it("uses renderTrigger instead of the default button", () => {
+    render(
+      <NewTaskButton
+        threadId="th1"
+        onCreate={vi.fn()}
+        renderTrigger={(openDialog) => (
+          <button type="button" onClick={openDialog}>
+            Add task to Launch
+          </button>
+        )}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "New task" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add task to Launch" }));
+    expect(screen.getByLabelText("Title")).toBeInTheDocument();
+  });
+});

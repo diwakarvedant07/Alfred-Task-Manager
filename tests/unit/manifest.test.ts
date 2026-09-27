@@ -9,7 +9,7 @@ describe("PWA manifest", () => {
 
     expect(manifest.name).toBeTruthy();
     expect(manifest.short_name).toBeTruthy();
-    expect(manifest.start_url).toBe("/canvas");
+    expect(manifest.start_url).toBe("./canvas");
     expect(manifest.display).toBe("standalone");
     expect(Array.isArray(manifest.icons)).toBe(true);
     expect(manifest.icons.length).toBeGreaterThan(0);

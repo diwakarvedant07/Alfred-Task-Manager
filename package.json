@@ -6,6 +6,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "next dev -p 3089",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start -p 3089",
     "lint": "eslint",
@@ -26,7 +27,8 @@
     "pg": "^8.23.0",
     "prisma": "^7.10.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "thinking-orbs": "^0.3.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

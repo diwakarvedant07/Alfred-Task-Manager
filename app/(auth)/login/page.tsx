@@ -36,8 +36,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-8 shadow-2xl">
-      <h1 className="mb-6 text-2xl font-semibold text-[var(--text,#eafcff)]">Log in</h1>
+    <div className="elevated w-full max-w-sm animate-rise rounded-3xl border border-fg/10 bg-[color-mix(in_srgb,var(--surface)_85%,transparent)] p-8 backdrop-blur-xl [animation-delay:80ms]">
+      <h1 className="text-2xl font-semibold tracking-tight text-fg">Log in</h1>
+      <p className="mb-6 mt-1 text-sm text-fg/55">Welcome back — pick up where you left off.</p>
       <form action={handleSubmit} data-testid="login-form" className="flex flex-col gap-4">
         <Input
           name="email"
@@ -57,7 +58,7 @@ export default function LoginPage() {
           icon={<Lock size={16} />}
           required
         />
-        <Link href="/forgot-password" className="self-end text-xs text-[var(--accent,#38e0ff)] hover:underline">
+        <Link href="/forgot-password" className="self-end text-xs font-medium text-accent hover:underline">
           Forgot password?
         </Link>
         <Button type="submit" loading={submitting}>
@@ -65,9 +66,9 @@ export default function LoginPage() {
         </Button>
         {error && <FormAlert>{error}</FormAlert>}
       </form>
-      <p className="mt-6 text-center text-sm text-[var(--text,#eafcff)]/60">
+      <p className="mt-6 text-center text-sm text-fg/55">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-[var(--accent,#38e0ff)] hover:underline">
+        <Link href="/signup" className="font-medium text-accent hover:underline">
           Sign up
         </Link>
       </p>

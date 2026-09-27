@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
 
-type TaskMenuProps = {
+// Optional controlled mode: a parent that opens the menu some other way
+// (long-press/right-click on a canvas bubble) passes open/onOpenChange and
+// hideTrigger to render just the popover without the ⋮ button.
+type ControlProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+};
+
+type TaskMenuProps = ControlProps & {
   variant: "task";
   onRename: () => void;
   onMoveToThread: () => void;
@@ -11,7 +20,7 @@ type TaskMenuProps = {
   onDelete: () => void;
 };
 
-type ThreadMenuProps = {
+type ThreadMenuProps = ControlProps & {
   variant: "thread";
   onRename: () => void;
   onChangeColor: () => void;
@@ -30,10 +39,23 @@ type ThreadMenuProps = {
 const LONG_PRESS_MS = 450;
 
 const menuItemClassName =
-  "block w-full rounded-md px-3 py-2 text-left text-sm text-[var(--text,#eafcff)] hover:bg-[var(--text,#eafcff)]/10";
+  "block w-full rounded-lg px-3 py-2 text-left text-sm text-fg/85 transition-colors hover:bg-fg/[0.07] hover:text-fg";
+
+const dangerItemClassName =
+  "block w-full rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10";
 
 export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = props.open !== undefined;
+  const open = isControlled ? props.open! : uncontrolledOpen;
+  const { onOpenChange } = props;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (!isControlled) setUncontrolledOpen(next);
+      onOpenChange?.(next);
+    },
+    [isControlled, onOpenChange]
+  );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -49,7 +71,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
     }
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [open]);
+  }, [open, setOpen]);
 
   function startLongPress() {
     timerRef.current = setTimeout(() => setOpen(true), LONG_PRESS_MS);
@@ -74,17 +96,21 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
       onClick={(e) => e.stopPropagation()}
       className="relative"
     >
-      <button
-        aria-label="More actions"
-        onClick={() => setOpen((o) => !o)}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text,#eafcff)]/70 hover:bg-[var(--text,#eafcff)]/10 hover:text-[var(--text,#eafcff)]"
-      >
-        <MoreVertical size={16} />
-      </button>
+      {!props.hideTrigger && (
+        <button
+          aria-label="More actions"
+          onClick={() => setOpen(!open)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="flex h-7 w-7 items-center justify-center rounded-lg pointer-coarse:h-9 pointer-coarse:w-9 text-fg/60 transition-colors hover:bg-fg/10 hover:text-fg"
+        >
+          <MoreVertical size={16} />
+        </button>
+      )}
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-1 w-48 rounded-lg border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-1 shadow-xl"
+          className="elevated absolute right-0 z-30 mt-1 w-52 origin-top-right animate-pop-in rounded-xl border border-fg/10 bg-surface p-1 font-normal"
         >
           {props.variant === "task" ? (
             <>
@@ -101,7 +127,8 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
               >
                 Link secondary thread…
               </button>
-              <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onDelete)}>
+              <div aria-hidden className="my-1 h-px bg-fg/10" />
+              <button role="menuitem" className={dangerItemClassName} onClick={() => runAndClose(props.onDelete)}>
                 Delete
               </button>
             </>
@@ -129,7 +156,7 @@ export default function CardMenu(props: TaskMenuProps | ThreadMenuProps) {
                   <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onClose)}>
                     Close thread
                   </button>
-                  <button role="menuitem" className={menuItemClassName} onClick={() => runAndClose(props.onDelete)}>
+                  <button role="menuitem" className={dangerItemClassName} onClick={() => runAndClose(props.onDelete)}>
                     Delete thread
                   </button>
                 </>

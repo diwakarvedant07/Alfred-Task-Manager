@@ -37,8 +37,8 @@ export default function Dropdown({
       {trigger({ open, toggle: () => setOpen((o) => !o) })}
       {open && (
         <div
-          className={`absolute z-30 mt-2 w-64 rounded-lg border border-[var(--text,#eafcff)]/10 bg-[var(--panel-bg,rgba(15,25,35,0.85))] p-2 shadow-xl ${
-            align === "right" ? "right-0" : "left-0"
+          className={`elevated absolute z-30 mt-2 w-72 animate-pop-in rounded-2xl border border-fg/10 bg-surface p-2 ${
+            align === "right" ? "right-0 origin-top-right" : "left-0 origin-top-left"
           }`}
         >
           {children}

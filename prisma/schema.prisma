@@ -60,6 +60,7 @@ model User {
   ownedThreads   Thread[]       @relation("ThreadOwner")
   taskUpdates    TaskUpdate[]
   taskPositions  TaskPosition[]
+  threadPositions ThreadPosition[]
   sharesReceived ThreadShare[]  @relation("ShareRecipient")
   threadViews    ThreadView[]
   jarvisMessages JarvisMessage[]
@@ -82,6 +83,7 @@ model Thread {
   shares         ThreadShare[]
   views          ThreadView[]
   summary        ThreadSummary?
+  positions      ThreadPosition[]
 
   @@index([ownerId, status])
 }
@@ -144,6 +146,19 @@ model TaskPosition {
   positionY Float
 
   @@id([taskId, userId])
+}
+
+model ThreadPosition {
+  threadId  String
+  userId    String
+  // Cascade: lib/purge.ts and app/actions/recycleBin.ts hard-delete
+  // threads; a RESTRICT FK here would make those purges fail.
+  thread    Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  positionX Float
+  positionY Float
+
+  @@id([threadId, userId])
 }
 
 model ThreadShare {

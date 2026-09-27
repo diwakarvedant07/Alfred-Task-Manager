@@ -5,10 +5,10 @@ import { test, expect } from "@playwright/test";
 // Gemini API (see components/canvas/Canvas.tsx handleCreateTask); once it
 // resolves, the task's priority/priorityIsAiSuggested fields update via the
 // same taskEditOverrides state used for in-progress edits, and an "AI
-// suggested" badge appears next to the priority both on the canvas card and
-// in the task detail panel. Manually changing priority clears
+// suggested" badge appears next to the priority in the task detail panel
+// (canvas task bubbles don't carry it). Manually changing priority clears
 // priorityIsAiSuggested (see app/actions/tasks.ts updateTask), so the badge
-// must disappear immediately in both places.
+// must disappear immediately.
 //
 // This deliberately never asserts *which* priority the AI chose -- that's
 // non-deterministic model output. It only asserts the observable,
@@ -19,14 +19,14 @@ import { test, expect } from "@playwright/test";
 // components involved (not the plan's original draft), specifically:
 //   - app/(auth)/signup/page.tsx
 //   - components/canvas/Canvas.tsx, NewThreadButton.tsx, NewTaskButton.tsx,
-//     TaskNode.tsx
+//     ThreadClusterNode.tsx, TaskBubble.tsx
 //   - components/task-detail/TaskDetailPanel.tsx
 //
 // Real-UI detail the plan's draft missed: components/canvas/Canvas.tsx
 // renders the TaskDetailPanel as an overlay *alongside* the ReactFlow
 // canvas, not in place of it -- so once the panel is open, there are two
-// elements with aria-label="AI suggested" on the page at once (the
-// TaskNode's badge underneath, plus the panel's own). Asserting
+// elements with aria-label="AI suggested" on the page at once (the old
+// canvas card's badge underneath, plus the panel's own). Asserting
 // page.getByLabel("AI suggested") directly at that point (as the draft
 // does) hits a Playwright strict-mode violation from the duplicate match.
 // This test scopes that assertion to the open dialog via
@@ -75,7 +75,7 @@ test("AI priority suggestion appears after task creation and disappears on manua
     await page.getByRole("button", { name: "New thread" }).click();
     await page.getByLabel("Thread name").fill("Q3 Report");
     await page.getByRole("button", { name: "Create" }).click();
-    await expect(page.getByText("Q3 Report")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Q3 Report — .*Open thread$/ })).toBeVisible();
   });
 
   await test.step("create a task with an urgent title and description", async () => {
@@ -90,27 +90,21 @@ test("AI priority suggestion appears after task creation and disappears on manua
     await expect(page.getByText(taskTitle)).toBeVisible();
   });
 
-  await test.step("the real AI suggestion lands and the badge appears on the canvas card", async () => {
-    // Fire-and-forget: the task is created instantly at the default MEDIUM
-    // priority, then suggestTaskPriority() resolves in the background via a
-    // real Gemini call. Generous timeout for real network + model latency
-    // (well beyond playwright.config.ts's already-raised 15s default).
-    await expect(page.getByLabel("AI suggested")).toBeVisible({ timeout: 30000 });
-  });
-
-  await test.step("the badge also shows in the task detail panel", async () => {
+  await test.step("the real AI suggestion lands and shows in the task detail panel", async () => {
+    // Task bubbles don't carry the AI badge (the detail panel does).
+    // Creating the task opened its thread, so the bubble is visible.
     await page.getByText(taskTitle).click();
     await expect(taskDetailDialog).toBeVisible();
-    await expect(taskDetailDialog.getByLabel("AI suggested")).toBeVisible();
+    // Fire-and-forget suggestion via a real Gemini call; generous timeout
+    // for real network + model latency.
+    await expect(taskDetailDialog.getByLabel("AI suggested")).toBeVisible({ timeout: 30000 });
   });
 
   await test.step("manually changing priority clears the AI-suggested badge everywhere", async () => {
     await taskDetailDialog.getByLabel("Priority").selectOption("LOW");
     await expect(taskDetailDialog.getByLabel("Priority")).toHaveValue("LOW");
-    // Checked page-wide (not scoped to the dialog) so this also confirms
-    // the canvas card's own badge -- still rendered underneath the open
-    // panel -- disappeared too, since both read the same taskEditOverrides
-    // entry for this task id.
+    // Checked page-wide (not scoped to the dialog) so no stray badge
+    // remains anywhere on the page.
     await expect(page.getByLabel("AI suggested")).toHaveCount(0);
   });
 });
