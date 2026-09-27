@@ -21,6 +21,8 @@ import ThreadClusterNode, { type ThreadClusterData } from "./ThreadClusterNode";
 import { clusterLayout, type ClusterLayout } from "./clusterLayout";
 import { COLLAPSED_DIAMETER, cameraZoomForCluster, clustersOverlap, defaultThreadPosition } from "./threadLayout";
 import { useOpenThreads } from "./useOpenThreads";
+import { mergeNodes } from "./mergeNodes";
+import { useSmoothWheelZoom } from "./useSmoothWheelZoom";
 import ThreadsPanel from "./ThreadsPanel";
 import TaskListView from "./TaskListView";
 import { LayoutGrid, List, Maximize, Minus, Plus } from "lucide-react";
@@ -93,6 +95,8 @@ function CanvasInner({
   // Timestamp of the last drag end, used to ignore the click that some
   // browsers deliver at the end of a drag.
   const lastDragEndRef = useRef(0);
+  const flowRef = useRef<HTMLDivElement | null>(null);
+  useSmoothWheelZoom(flowRef, { minZoom: 0.2, maxZoom: 2, reducedMotion: !!reducedMotion });
   const [jarvisWorkspaceOpen, setJarvisWorkspaceOpen] = useState(false);
   const launcherRef = useRef<HTMLButtonElement | null>(null);
   const [jarvisOrigin, setJarvisOrigin] = useState<LauncherOrigin | null>(null);
@@ -481,15 +485,7 @@ function CanvasInner({
   // process. The values below only change when something real changed.
   const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
   useEffect(() => {
-    // Keep whatever position React Flow has for a node mid-drag; otherwise
-    // a re-derive (hover, open) during a drag would snap it back.
-    setLocalNodes((current) => {
-      const byId = new Map(current.map((n) => [n.id, n]));
-      return nodes.map((n) => {
-        const existing = byId.get(n.id);
-        return existing?.dragging ? { ...n, position: existing.position, dragging: true } : n;
-      });
-    });
+    setLocalNodes((current) => mergeNodes(current, nodes));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threads, tasks, effectiveThreadPositions, taskEditOverrides, openThreads.openIds, hoveredThreadId, layouts]);
 
@@ -733,6 +729,7 @@ function CanvasInner({
             would leave fitView working from zero-size nodes. */}
         {!showList && (
           <ReactFlow
+            ref={flowRef}
             nodes={localNodes}
             nodeTypes={nodeTypes}
             onNodesChange={handleNodesChange}
@@ -742,6 +739,9 @@ function CanvasInner({
             nodeOrigin={[0.5, 0.5]}
             minZoom={0.2}
             maxZoom={2}
+            // Wheel/pinch zoom is handled by useSmoothWheelZoom instead.
+            zoomOnScroll={false}
+            zoomOnPinch={false}
             fitView
             fitViewOptions={{ padding: 0.3, maxZoom: 1.1 }}
             proOptions={{ hideAttribution: true }}
